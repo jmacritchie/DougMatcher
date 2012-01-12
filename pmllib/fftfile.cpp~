@@ -1,0 +1,127 @@
+
+
+#include "fftfile.h"
+#include "soundfile.h"
+#include <iostream>
+#include <fstream>
+
+using namespace std;
+
+
+#define LOG  cout
+
+FFTFile::FFTFile( SoundFile *sf ){
+
+  string fname = m_sf->getFilename();
+
+  int pos = fname.find( "." );
+  LOG << fname << " " << pos << endl;
+  fname = fname.erase( pos+1, fname.size() - (pos+1) );
+  fname.append("fft");
+
+  LOG << "Output filename " << fname << "\n";
+
+  ofstream fout(fname.c_str());
+
+  m_frequencies.clear();
+  int frameSize = m_pt->getFrameSize();
+
+  int noFrames = (m_sf->length() - (frameSize-m_stepSize))/m_stepSize;
+
+  fout << "SampleRate " << m_sampleRate << endl
+       << "framesize " << m_frameSize << endl
+       << "stepsize " << m_stepSize << endl
+       << "noFrames " << noFrames << endl;
+
+  LOG << "No frames = " << noFrames << endl;
+
+  for( int frameNo=0; frameNo<noFrames; frameNo++ ){
+
+    double *frame = &(m_sf->data()[frameNo*m_stepSize]);
+    double *ptFrame = m_pt->getInBuffer();
+    
+    memcpy( ptFrame, frame, (m_pt->getFrameSize()+m_pt->getStepSize())*sizeof(double) );
+    
+    double freq = m_pt->getPitch();
+    fout << frameNo << " " << freq << endl;
+    m_frequencies.push_back( new FreqEst(frameNo,freq) );
+  }
+  
+  fout.close(); 
+
+  double buffer[m_frequencies.size()];
+  int i=0;
+  for( FreqIt it = m_frequencies.begin(); it != m_frequencies.end(); it++, i++ ){
+    buffer[i] = (*it)->second;
+  }
+
+  plotDoubleData( "Frequency plot", buffer, m_frequencies.size() );
+
+}
+
+
+FFTFile::FFTFile( string fftFile ){
+  ifstream fft( fftFile.c_str(), ios::in );
+  char buffer [100];
+  string line;
+  
+  fft.getline( buffer, 99 );
+  line = buffer;
+  
+  unsigned int npos = line.find( "SampleRate" );
+  if( npos == string::npos ){
+    cerr << "Error in FFT file!\n";
+    exit( -1 );
+  }
+
+  line = line.erase(0, npos + 10 );
+  m_sampleRate = atoi( line.c_str() );
+
+  fft.getline( buffer, 99 );
+  line = buffer;
+  npos = line.find( "framesize" );
+  line = line.erase(0, npos + strlen("framesize" ) );
+  m_frameSize = atoi( line.c_str() );
+
+  fft.getline( buffer, 99 );
+  line = buffer;
+  npos = line.find( "stepsize" );
+  line = line.erase(0, npos + strlen("stepsize" ) );
+  m_stepSize = atoi( line.c_str() );
+
+  fft.getline( buffer, 99 );
+  line = buffer;
+  npos = line.find( "noFrames" );
+  line = line.erase(0, npos + strlen("noFrames" ) );
+  int noFrames = atoi( line.c_str() );
+
+  LOG << "SampleRate " << m_sampleRate << endl
+       << "framesize " << m_frameSize << endl
+       << "stepsize " << m_stepSize << endl
+       << "noFrames " << noFrames << endl;
+
+  LOG << "No frames = " << noFrames << endl;
+
+
+
+  while( !fft.eof() ){
+
+    fft.getline( buffer, 99 );
+    line = buffer;
+
+    int frameNo; 
+    double freq; 
+
+    fft >> frameNo;
+    fft >> freq;
+    //fft.getline( buffer, 99 ); //advance to next line
+
+    //LOG << "Frame " << frameNo << "\tfreq " << freq << endl;
+
+    m_frequencies.push_back( new FreqEst( frameNo, freq ) );
+
+
+  }
+
+}
+

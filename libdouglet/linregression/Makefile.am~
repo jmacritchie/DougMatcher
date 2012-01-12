@@ -1,0 +1,18 @@
+
+
+bin_PROGRAMS 		= testbf
+
+testbf_SOURCES 	        = main.cpp \
+			  linreg.cpp
+testbf_LDADD		= -ldoug -lfftw3 -lsndfile
+
+
+
+CXXFLAGS                += -march=athlon-mp -I/home/dougie/work/codebank -L/usr/local/lib
+
+
+
+
+
+
+

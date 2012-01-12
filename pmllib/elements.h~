@@ -1,0 +1,22 @@
+
+
+
+
+class Pitch{
+
+
+  Pitch( DOMElement *pitch );
+  Pitch( char name, int acc, int oct );
+
+  std::string getAsString( bool withOctave=true );
+
+  DOMElement *getElement(){ return m_element; }
+
+
+}
+
+
+
+Pitch::Pitch( DOMElement *pitch ){
+  m_element = pitch;
+}

@@ -1,0 +1,549 @@
+
+#include "pmldocument.h"
+#include "tuning.h"
+#include "scorepart.h"
+#include "perfpart.h"
+
+#include <iostream>
+#include <string>
+#include <vector>
+
+#include <xercesc/util/PlatformUtils.hpp>
+#include <xercesc/dom/DOMImplementationLS.hpp>
+#include <xercesc/dom/DOMImplementationRegistry.hpp>
+#include <xercesc/dom/DOMWriter.hpp>
+#include <xercesc/dom/DOMException.hpp>
+#include <xercesc/dom/DOMEntity.hpp>
+#include <xercesc/dom/DOMText.hpp>
+#include <xercesc/dom/DOMNodeList.hpp>
+#include <xercesc/dom/DOMNamedNodeMap.hpp>
+#include <xercesc/dom/DOMDocumentType.hpp>
+#include <xercesc/util/XMLString.hpp>
+#include <xercesc/framework/XMLFormatter.hpp>
+#include <xercesc/framework/LocalFileFormatTarget.hpp>
+
+#include "errorhandler.h"
+//#include "../codebank/algorithms.h"
+#include "xmlsc.h"
+#include "pitch.h"
+
+using std::cout;
+using std::string;
+using std::endl;
+using std::cerr;
+using std::vector;
+using namespace PMLAlgorithms;
+using std::ofstream;
+
+
+string PMLAlgorithms::itoa( int i ){
+    std::stringstream ss;
+    ss <<  i;
+    return ss.str();
+}
+
+
+string PMLAlgorithms::ftoa( double f ){
+    std::stringstream ss;
+    ss <<  f;
+    return ss.str();
+}
+
+
+PMLDocument::PMLDocument(){
+
+// Initialize the XML4C2 system
+    try {
+        XMLPlatformUtils::Initialize();
+    }
+    catch(const XMLException &toCatch) {
+        XERCES_STD_QUALIFIER cerr << "Error during Xerces-c Initialization.\n"
+                << "  Exception message:"
+                << XS(toCatch.getMessage()) << XERCES_STD_QUALIFIER endl;
+        return;
+    }
+
+// get Implementation and DOMBuilder
+    const XMLCh *features = XS("XML 2.0");
+    m_impl = DOMImplementationRegistry::getDOMImplementation( features );
+    m_builder = ((DOMImplementation*)m_impl)->createDOMBuilder(DOMImplementation::MODE_SYNCHRONOUS, 0);
+
+
+//create & register error handler
+    m_err = new ErrorHandler();
+    m_builder->setErrorHandler( m_err );
+
+
+}
+
+/**
+ * Some memory leaks left here... need to investigate
+ * proper procedure
+ */
+PMLDocument::~PMLDocument(){
+
+    cout << "Releaseing  Xerces platform\n";
+
+    try
+    {
+        XMLPlatformUtils::Terminate();  // Terminate Xerces
+    }
+    catch( xercesc::XMLException& e )
+    {
+        char* message = xercesc::XMLString::transcode( e.getMessage() );
+
+        cerr << "XML toolkit teardown error: " << message << endl;
+        XMLString::release( &message );
+    }
+
+}
+
+/**
+ * Attempt to open given file. If file is MusicXML,
+ * file will be extended to PML. 
+ */
+bool PMLDocument::openFile( string filename, bool validate ){
+
+// set validation on/off
+// (this might need to be off initially
+// as the document will fail pml validation
+// until extensions are satisfied
+    m_builder->setFeature( XMLUni::fgDOMValidation, validate );
+
+    cout << "---- Parsing file " << filename.c_str() << " ----\n\n";
+    try{
+        m_doc = m_builder->parseURI( filename.c_str() );
+    }
+    catch( const XMLException& e ){ 
+        cout << "Message\n";
+        cout << XS(e.getMessage()) << endl; 
+    }
+    catch( const DOMException& e ){ 
+        cout << "Message\n";
+        cout << XS(e.msg) << endl; 
+    }
+    catch (...) {
+        cout << "Unknown exception\n";
+    }
+    cout << "---- File parsed ----\n\n";
+
+    const string docType = XS( m_doc->getDoctype()->getName() );
+
+    if( docType == "score-partwise" ){
+        cout << "Converting MusicXML file to PML\n";
+        mxmlToPml();
+    }
+    else if( docType != "pml" ){
+        cout << "Incompatible document\n";
+        return false;
+    }
+
+    cout << "Loaded document\n";
+    return true; // 2DO
+
+}
+
+
+void PMLDocument::mxmlToPml(){
+
+    cout << "Converting mxml to pml\n"
+            << "If this section fails, the DTD probably\n"
+            << "was not located on the system. The\n"
+            << "current implementation does not support\n"
+            << "DTDs located on internet. Sorry\n";
+
+// Create PML document with PML DTD,
+// move original root document into score element
+// then add id's to all score elements
+
+    DOMDocument *oldDoc = m_doc;
+    DOMElement *oldRoot = m_doc->getDocumentElement();
+
+    cout << "Old root is " << XS(oldRoot->getTagName()) << endl;
+
+
+    DOMDocumentType *dtd = m_impl->createDocumentType(XS("pml"), XS(""), XS("/home/dougie/work/pml/mxml/pml.dtd"));
+    m_doc = m_impl->createDocument( XS(""), XS("pml"), dtd);
+    cout << "Created new document\n";
+
+//ROOT
+    DOMElement* root = m_doc->getDocumentElement();
+    cout << "Got new root " << XS(root->getTagName()) << endl;
+
+    cout << "Old root is " << XS(oldRoot->getTagName()) << endl;
+// Deep copy import
+    DOMNode* score = m_doc->importNode( oldRoot, true );
+    cout << "Got copy of mxml root\n";
+
+
+    root->appendChild( score );
+    cout << "Appended copy to score element\n";
+    delete oldDoc;
+
+    cout << "Deleted old document\n";
+
+//PERFORMANCE - here is where the performance element/tag is added to the XML tree as a child of the root element
+    DOMElement *perf = m_doc->createElement( XS("performance") );
+    root->appendChild( perf );
+    cout << "check\n";
+
+//SCORE PARTS - this returns the number of parts in the score
+    DOMNodeList *parts = root->getElementsByTagName(XS("part"));
+    cout << "Document has " << parts->getLength() << " part(s)\n";
+
+
+    int noteId=1; //Holds number for note id
+    int restId=1; //Hold number for rest id
+    int tieId=2;  //Hold number for tie id (this number is used in correlation with  noteId for tied notes)
+    for( int i=0; i<parts->getLength(); i++ ){
+
+        DOMElement *part = (DOMElement*)parts->item(i);
+        string partId = XS( part->getAttribute( XS("id") ) );
+
+        DOMNodeList *measures = part->getElementsByTagName( XS("measure") ); //returns the number of measures in score
+
+        cout << "Part " << partId << " has " << measures->getLength() << " measures\n";
+
+//int divisions = 960; // (default divisions) Check if this is right for mxml
+        int startTime = 0;   // holds current start time
+        int prevDuration =0;
+
+        int divs;   // used to calculate length of measures
+        int beats=4; //default timesig
+        int beattype=4;
+        int barStart=0;
+        int barLength=0;
+
+// Iterate through PART contents
+        for( unsigned int i=0; i < measures->getLength(); i++ ){
+
+            DOMElement *measure = (DOMElement*)measures->item(i);
+
+
+            prevDuration = 0;
+            barStart += barLength;
+            startTime = barStart;
+            cout << "Bar " << i << endl;
+            cout << "This bar starts at " << barStart << endl;
+
+
+// Iterate through MEASURE contents
+            for( DOMNode *measureIt = measure->getFirstChild(); //loop through children of measure
+                 measureIt != NULL; 
+                 measureIt = measureIt->getNextSibling() ){     
+	
+                     if( measureIt->getNodeType() == DOMNode::ELEMENT_NODE ){ //if the child is an element 
+	
+                         DOMElement *e = (DOMElement*)measureIt;  //assign a pointer to it
+	
+                         string tag = XS( e->getTagName() );     //and get its tag name
+	//cout << tag << " element\n";
+	
+	// if ATTRIBUTES, check if bar length has changed
+	//(note this is a type of mxml element and not to be confused with enumeration attributes of elements)
+                         if( tag == "attributes" ){
+
+                             DOMElement *divisionsEl = getSingleElement( e, "divisions" );
+                             if(divisionsEl) 
+                                 divs = atoi( getText( divisionsEl ).c_str() );
+
+                             DOMElement *timesig = getSingleElement( e, "time" );
+                             if(timesig){
+
+                                 DOMElement *b = getSingleElement(e,"beats");
+                                 DOMElement *bt = getSingleElement(e,"beat-type");
+
+                                 beats = atoi( getText( b ).c_str() );
+                                 beattype = atoi( getText( bt ).c_str() );
+                             }
+                             barLength = divs * beats * (4/beattype);
+                             cout << "Divisions " << divs << endl
+                                     << "Timesig " << beats << "/" << beattype << endl
+                                     << "Bar length " << barLength << endl;
+
+                         }
+
+	// NOTE
+                         else if( tag == "note" ) {
+	
+		// set ids - the following two lines are Dougies orginal - keep for reference
+		//this is the original bit of code before I added the rests - brought back in because mystuff above doesn't work
+				string idString = "note" + itoa( noteId++ );
+				e->setAttribute( XS("id"), XS(idString.c_str()) );
+		
+			 }
+				
+				/*
+			 
+			 This is the code I added but have taken out because labelling the rests and ties separately doesn't work with db
+			 
+                             //set Ids here
+                             string idString;
+                             DOMNodeList *tiednote;
+                             DOMElement *ties;
+                             DOMElement *multities;
+                             
+                             //check to see if there are any 'rest' tags for this note
+                             DOMElement *rests = getSingleElement( e, "rest" );
+                             
+                             //check to see if there are any 'tied' tags for this note
+                             DOMElement *notationalinfo = getSingleElement( e, "notations" );
+		
+                             if(notationalinfo){
+                                 tiednote = notationalinfo->getElementsByTagName(XS("tied"));
+                                 ties = (DOMElement*)tiednote->item(0);
+                                 multities = (DOMElement*)tiednote->item(1);
+                             }
+                             else{
+                                 ties = 0;
+                                 multities = 0;
+                             }
+
+		
+		//how to give Id's in the event of rests
+                             if(rests){
+                                 idString = "rest" + itoa( restId++ );
+                                 e->setAttribute( XS("id"), XS(idString.c_str()) );
+                             }
+		//how to give Id's in the event of tied note
+                             else if(ties){
+			//start of tied notes
+                                 string tietype = XS( ties->getAttribute( XS("type") ) );
+                                 if ( tietype == "start" ) {
+                                     idString = "note" + itoa( noteId );
+                                     e->setAttribute( XS("id"), XS(idString.c_str()) );
+                                 }
+			//middle of tied notes
+                                 else if(multities){
+                                     string multitietype = XS( multities->getAttribute( XS("type") ) );
+                                     if(multitietype == "start"){
+                                         idString = "note" + itoa( noteId ) + "-" + itoa(tieId++);
+                                         e->setAttribute( XS("id"), XS(idString.c_str()) );
+                                     }
+                                 }
+			//end of tied notes - only enters this part of loop if not in middle of multiple note tie
+                                 else if(tietype == "stop"){
+                                     idString = "note" + itoa( noteId++ ) + "-" + itoa(tieId);
+                                     e->setAttribute( XS("id"), XS(idString.c_str()) );
+                                     tieId=2;  //reset tieId for use in next bunch of tied notes
+                                 }
+
+                             }
+		
+                             else { // not ties
+                                 idString = "note" + itoa( noteId++ );
+                                 e->setAttribute( XS("id"), XS(idString.c_str()) );
+                             }
+			     
+			     */
+
+		//get duration
+                             int currentDuration;
+                             DOMNodeList *nl = e->getElementsByTagName(XS("duration"));
+                             if( nl->getLength() == 0 ){
+                                 currentDuration = 0;
+                             }
+                             else{
+                                 DOMElement *dur = (DOMElement*)nl->item(0);  //place value of duration in 
+                                 string durText = getText( dur );             //CurrentDuration interger
+                                 currentDuration = atoi( durText.c_str() );	  
+                             }
+		
+		// if not part of a chord, add previous duration to start time
+		// else, adjust duration if current duration is smaller
+                             if( !e->getElementsByTagName(XS("chord"))->getLength() ){
+                                 startTime += prevDuration;
+                                 prevDuration = currentDuration;
+                             }
+                             else{
+                                 if( currentDuration < prevDuration )
+                                     prevDuration = currentDuration;
+                             }
+	
+		// set explicit time
+                             string tString = itoa( startTime );
+                             DOMElement *time = m_doc->createElement( XS(SNote::Onset) );
+                             time->appendChild( (DOMNode*)m_doc->createTextNode( XS(tString.c_str()) ) );
+                             e->appendChild( time );
+                             cout << "Note " << idString << " start time " << tString << endl;
+                         }
+	// MusicXML <backup> tag 'rewinds' current onset time
+                         else if( tag == "backup" ){
+                             DOMElement *duration = (DOMElement*)e->getElementsByTagName(XS("duration"))->item(0);
+                             int dur = atoi( getText(duration).c_str() );
+                             startTime += prevDuration;
+                             prevDuration = 0;
+                             startTime -= dur;
+	
+                             cout << "\nCurrent time " << startTime
+                                     << "\nbarstart" << barStart 
+                                     << "\nbackup duration " << dur << endl;
+	
+                             if( startTime < barStart ) startTime = barStart;
+                             cout << "New time " << startTime << endl;
+                         }
+	// MusicXML <backup> tag 'forwards' current onset time
+                         else if( tag == "forward" ){
+                             DOMElement *duration = (DOMElement*)e->getElementsByTagName(XS("duration"))->item(0);
+                             int dur = atoi( getText(duration).c_str() );
+	
+                             startTime += prevDuration;
+                             prevDuration = 0;
+                             startTime += dur;
+	
+                             if( startTime > barStart+barLength ) cerr << "Possibly FATAL error in forward element!\n";
+                         }
+                     }
+	
+                 }
+
+        }
+    }
+}
+
+int PMLDocument::getNoParts(){
+    DOMElement *root = m_doc->getDocumentElement();
+    DOMNodeList *parts = root->getElementsByTagName(XS("part"));
+    return parts->getLength();
+}
+
+int PMLDocument::getNoPerfParts(){
+    DOMElement *root = m_doc->getDocumentElement();
+    DOMNodeList *parts = root->getElementsByTagName(XS("perfpart"));
+    return parts->getLength();
+}
+
+
+ScorePart *PMLDocument::getScorePart( int index ){
+    DOMElement *root = m_doc->getDocumentElement();
+    DOMNodeList *parts = root->getElementsByTagName(XS("part"));
+
+    DOMElement *score = (DOMElement*)parts->item(index);
+    ScorePart *scorePart = new ScorePart(this, score);
+    return scorePart;
+}
+
+/**
+TEMP! 2DO Returns perf part by index (will not create perf part)
+ */
+PerfPart *PMLDocument::getPerfPart( int index ){
+    DOMElement *root = m_doc->getDocumentElement();
+    DOMElement *perf = (DOMElement*)root->getElementsByTagName(XS("performance"))->item(0);
+    DOMNodeList *parts = perf->getElementsByTagName(XS("perfpart"));
+
+    DOMElement *perfPartEl = (DOMElement*)parts->item(index);
+    PerfPart *perfPart = new PerfPart(this, perfPartEl);
+    return perfPart;
+}
+
+DOMDocument *PMLDocument::getDocument(){ return m_doc; }
+
+DOMElement *PMLDocument::getElementById( std::string id ){
+
+    return m_doc->getElementById( XS(id.c_str()) );
+}
+
+
+
+
+
+void PMLDocument::writeFile( string filename ){
+
+
+    DOMWriter *writer = m_impl->createDOMWriter();
+
+    m_doc->setEncoding( XS("UTF-8") );
+    m_doc->setActualEncoding( XS("UTF-8") );
+    writer->setEncoding( XS("UTF-8"));
+    writer->setErrorHandler( m_err );
+// use indentation in written file
+
+
+    writer->setFeature( XS("format-pretty-print"), true);
+    XMLFormatTarget *outFile = new LocalFileFormatTarget(filename.c_str());
+
+    writer->writeNode( outFile, *m_doc  );
+    outFile->flush();
+
+    writer->release();
+
+    delete outFile;
+}
+
+/**
+ * 2DO extend to support non default references
+ * If no tuning present, will default to 12ET
+ */
+Tuning *PMLDocument::getTuning(){
+
+    DOMElement *perf = getSingleElement(m_doc->getDocumentElement(), "performance");
+
+    if( !perf ){
+//cerr << "No performance element! Defaulting to 12ET\n";
+    }
+    else{
+
+        DOMElement *tuningEl = getSingleElement(perf, "tuning");
+
+
+        if( !tuningEl ){
+            cout << "No tuning element! Defaulting to 12ET\n";
+        }
+        else{
+            string tuningName = XS( tuningEl->getAttribute(XS("name")) );
+
+            IntervalList *intervals = new IntervalList;
+            SpellingList *spellingList = new SpellingList;
+
+            /* Get intervals */
+            DOMElement* intList = getSingleElement(tuningEl,"intervallist");
+
+            DOMNodeList *intervalEls = intList->getElementsByTagName(XS("interval"));
+            for( int i=0; i<intervalEls->getLength(); i++ ){
+                string is = getText((DOMElement*)intervalEls->item(i));
+	//cout << "Interval " << is << endl;
+                intervals->push_back( atof(is.c_str())  );
+            }
+
+            /* Get enharmonic equivalent spellings */
+            DOMElement *spellingListEl = getSingleElement( tuningEl, "spellinglist" );
+            DOMNodeList *equivs = spellingListEl->getElementsByTagName(XS("enharmequiv"));
+
+            for( int e=0; e<equivs->getLength(); e++ ){
+
+                DOMElement *equiv = (DOMElement*)equivs->item(e);
+                DOMNodeList *spellings = equiv->getElementsByTagName(XS("spelling"));
+
+                for( int i=0; i<spellings->getLength(); i++ ){
+
+                    DOMElement* spEl = (DOMElement*)spellings->item(i);
+
+                    Accidental acc;
+                    if( spEl->getAttributeNode(XS("acc")) == NULL )  
+                        acc = Accidentals::NoAccidental;
+                    else
+                        acc = XS( spEl->getAttribute(XS("acc")) );
+	//cout << "Acc " << acc << endl;
+	
+                    string notest = XS(spEl->getAttribute(XS("note")));
+                    char note = notest[0];
+	
+                    PitchSpelling ps(note,acc);
+                    SpellingListItem spi( e, ps );
+                    spellingList->insert( spi);
+                }
+            }
+
+            Tuning *tuning = new Tuning( tuningName, intervals, spellingList);
+            return tuning;
+        }      
+    }
+
+
+
+    std::vector<Tuning*>* tunings = Tuning::getTunings( "/usr/local/lib/tunings" );
+    Tuning *tuning = tunings->at(0);
+    return tuning;
+}
+
+

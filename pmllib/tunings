@@ -1,0 +1,66 @@
+
+# Define tunings for tracker here.
+
+#Tuning (tuning of system)
+#
+#(interval) (spelling variation)
+#(interval) (spelling variation)
+#
+# etc..
+#
+
+
+
+# Note Spelling
+# Rosegarden denotes microtonal accidentals by changing the value of controller 127.
+# The values are: 
+# 	-4 double flat, -3 triplesemiflat, -2 flat, -1 semiflat
+# 	4 double sharp, 3 triplesemisharp, 2 sharp, 1 semisharp
+# Therefore a B semisharp is B1.
+# 
+# Intervals
+# The first interval specified should be the difference between the root
+# note and the next step in the chromatic scale. Eg. 100 for 12 ET
+# The last interval should indicate the repitition of the tuning
+# eg. 1200 cents for octave based tunings
+
+
+Tuning 12ET
+#      !!! Some pitches still to be added !!!
+#cents	spelling
+100.0,	A,
+200.0,	A2,	B-2,	C-4
+300.0,	B,	C-2
+400.0,	C, 	B2
+500.0,	C2, 	D-2, 	B4
+600.0,	D,	C4
+700.0,	D2, 	E-2, 	
+800.0,	E,	F-2
+900.0,	F,	E2
+1000.0,	F2, 	G-2
+1100.0,	G
+1200.0,	G2, 	A-2
+
+Tuning 19 ET
+#cents,		spelling
+63.158,		A
+126.316,	A2
+189.474,	B-2
+252.632,	B
+315.789,	B2, C-2
+378.947,	C
+442.105,	C2
+505.263,	D-2
+568.421,	D
+631.579,	D2
+694.737,	E-2
+757.895,	E
+821.053,	E2, F-2
+884.211,	F
+947.368,	F2
+1010.526,	G-2
+1073.684,	G
+1136.842,	G2
+1200.0,		A-2
+
+

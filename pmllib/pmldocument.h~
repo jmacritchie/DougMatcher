@@ -1,0 +1,87 @@
+
+
+#ifndef PMLDOCUMENT_H
+#define PMLDOCUMENT_H
+
+
+#include <string>
+#include <vector>
+
+#include <xercesc/dom/DOMDocument.hpp>
+#include <xercesc/dom/DOMElement.hpp>
+#include <xercesc/dom/DOMBuilder.hpp>
+#include <xercesc/dom/DOMImplementation.hpp>
+
+XERCES_CPP_NAMESPACE_USE
+#define XS XMLString::transcode
+
+namespace PMLAlgorithms{
+  /// Converts an integer into a string.
+  std::string itoa( int i );
+
+/*
+  /// Converts a floating point number into a string.
+  std::string ftoa( double f );
+*/
+}
+
+class PerfPart;
+class Tuning;
+
+/**
+ * Access class for a Perfromance Markup 
+ * Language document. 
+ */
+
+/* 2DO: sort out adding/removing of parts.
+   should distinctly make this a DOM wrapping
+   API. EG. the note lists are created on
+   initiation of the score/perf parts
+   and aren't updated
+ */
+
+class ScorePart;
+class ErrorHandler;
+
+class PMLDocument{
+
+ public:
+  /// Loads and verifies a pml file against the dtd.
+  // Document is traversed creating vectors of
+  // elements for fast manipulation
+  PMLDocument();
+  ~PMLDocument();
+
+  bool openFile( std::string filename, bool validate=true );
+  void writeFile( std::string filename );
+  void mxmlToPml();
+
+  int getNoParts();
+  int getNoPerfParts();
+ 
+  ScorePart *getScorePart( int index );
+  PerfPart *getPerfPart( int index );
+
+  DOMDocument *getDocument();
+  DOMElement *getElementById( std::string id );
+
+  Tuning *getTuning();
+
+ protected:
+
+  std::vector<PerfPart*> m_perfParts;
+  std::vector<ScorePart*> m_scoreParts;
+
+
+  
+  DOMDocument *m_doc;
+  ErrorHandler *m_err;
+  DOMBuilder *m_builder;
+  DOMImplementation *m_impl;
+};
+
+
+
+
+
+#endif

@@ -1,0 +1,883 @@
+
+
+
+/*
+This is an old copy of the tuning class, it contains mostly code to translate
+pitch & frequency on a per-note basis. This was abandoned in favour of the
+hash table method which is populated during class creation/modification.
+(The begining stages of the population can be seen in the createTuningMaps method)
+*/
+
+
+
+/***************************************************************************
+                                 tuning.cpp
+                             -------------------
+    email                : D.Mcgilvray@elec.gla.ac.uk
+    website              : http://cmt.gla.ac.uk
+    copyright            : (C) 2004 by D.McGilvray & CMT
+
+***************************************************************************/
+
+/***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ ***************************************************************************/
+
+#include <qfile.h>
+#include <qstring.h>
+#include <qtextstream.h>
+#include <iostream>
+#include <math.h>
+#include <string>
+#include <map>
+#include <utility>
+#include "tuning.h"
+#include "pitch.h"
+
+
+#define TUNING_DEBUG 0
+
+using std::pair;
+using std::string;
+
+
+
+
+
+
+
+
+
+typedef std::pair<int, std::string> accPair;
+
+std::vector<Tuning*> Tuning::m_tunings;
+
+std::vector<Tuning*> *Tuning::getTunings( string filename ){
+
+  //if already have tunings, return them
+  if( m_tunings.size() )
+    return &m_tunings;
+
+
+  //create map from accidental number to accidental string
+  std::map<int, Accidental> accMap;
+  accMap.insert( accPair( -4, Accidentals::DoubleFlat ));
+  accMap.insert( accPair( -3, Accidentals::ThreeQuarterFlat ));
+  accMap.insert( accPair( -2, Accidentals::Flat ));
+  accMap.insert( accPair( -1, Accidentals::QuarterFlat ));
+  accMap.insert( accPair( 0,  Accidentals::NoAccidental ));
+  accMap.insert( accPair( 1,  Accidentals::QuarterSharp ));
+  accMap.insert( accPair( 2,  Accidentals::Sharp ));
+  accMap.insert( accPair( 3,  Accidentals::ThreeQuarterSharp ));
+  accMap.insert( accPair( 4,  Accidentals::DoubleSharp ));
+    
+  QFile fin( filename );
+  
+  IntervalList *intervals = new IntervalList;
+  intervals->push_back(0);// [0] interval will always be 0, last interval will define octave 
+  SpellingList *spellings = new SpellingList;
+
+  if( fin.open( IO_ReadOnly ) ){
+    
+
+    bool inTuningDefinition = false;
+    int lineNumber = 0;
+    QString line = QString::null;
+    QTextStream stream( &fin );
+    QString tuningName;
+      
+      while( !stream.atEnd() ){
+	line = stream.readLine();
+	lineNumber++;
+	line = line.stripWhiteSpace();
+	
+	// ignore comments or blanks
+	if( line.at(0) == '#' || line.at(0) == '!')continue;
+	else if( line.isEmpty() )continue;
+	
+	// Tuning declaration
+	else if( line.startsWith( QString("Tuning"), false ) ){ 
+	  
+	  if( inTuningDefinition ){
+	    if( TUNING_DEBUG ) std::cout << "End of tuning " << tuningName << std::endl;
+	    std::string name = tuningName.ascii();
+	    Tuning *newTuning = new Tuning( name, intervals, spellings );
+	    m_tunings.push_back( newTuning );
+	    intervals = new IntervalList;
+	    intervals->push_back(0);      // [0] interval will always be 0, last interval will define octave 
+	    spellings = new SpellingList;
+
+
+	  }
+
+	  // Remove tuning keyword and get name from remainder of line
+	  line.remove( 0, 6 );
+	  line = line.stripWhiteSpace();
+
+
+	  tuningName = line;
+	  inTuningDefinition = true;
+
+	  if(TUNING_DEBUG)
+	    std::cout << "\nNew Tuning\t '" << tuningName << "'" << std::endl;
+
+
+	}
+	
+	
+	// Must be a note line
+	else{
+	  
+	  bool ok;
+	  int commaPos;
+	  
+	  if(TUNING_DEBUG)
+	    std::cout << "note" << std::endl
+		 << "line no." << lineNumber << std::endl;
+	  
+	  // is cents or ratio
+
+	  // get cents
+
+	  double cents;
+	  commaPos = line.find( QChar(',') );
+	  QString intervalString = line;
+	  intervalString.remove( commaPos, intervalString.length() - commaPos );
+	  intervalString = intervalString.stripWhiteSpace();
+
+	  int dotPos = intervalString.find( QChar('.') );
+
+	  
+	  if( dotPos == -1 ){ //interval is a ratio	    
+	    
+	    if(TUNING_DEBUG)std::cout << "Interval is a ratio" << std::endl;
+
+	    int slashPos = intervalString.find( QChar('/') );
+	    double ratio=1;
+	    if( slashPos == -1 ){ //interval is integer ratio
+	     if(TUNING_DEBUG) std::cout << "Ratio is an integer" << std::endl;
+
+	      ratio = intervalString.toInt( &ok );
+	      if( !ok ){
+		std::cerr << "Syntax Error in tunings file, line " << lineNumber << std::endl;
+		continue;
+	      }
+	      else{
+
+		//convert ratio to cents	      
+		QString numeratorString = intervalString;
+		numeratorString.remove( slashPos, numeratorString.length() - slashPos );
+		 if(TUNING_DEBUG) std::cout << "numerator" << numeratorString << std::endl;
+		int numerator = numeratorString.toInt( &ok );
+		if( !ok ){
+		  std::cerr << "Syntax Error in tunings file, line " << lineNumber << std::endl;
+		  continue;
+		}
+      
+	      
+		QString denominatorString = intervalString;
+		denominatorString.remove( 0, slashPos+1 );
+		 if(TUNING_DEBUG) std::cout << "d " << denominatorString << std::endl;
+		int denominator = denominatorString.toInt( &ok );
+		if( !ok ){
+		  std::cerr << "Syntax Error in tunings file, line " << lineNumber << std::endl;
+		  continue;
+		}	   
+
+		if(TUNING_DEBUG)
+		  std::cout << "Ratio: " << numeratorString
+			    << "/" << denominatorString << std::endl;
+		
+		ratio = (double)numerator / (double)denominator;
+	      
+
+		//calculate cents	    
+		cents = 1200.0 * log( ratio )/log(2.0);
+		if(TUNING_DEBUG)
+		  std::cout << "cents " << cents << std::endl;
+	      }
+	    }
+	  }
+	  else{ // interval is in cents
+	    if(TUNING_DEBUG) std::cout << "Interval is in cents" << std::endl;
+	    cents = intervalString.toDouble( &ok );
+	    if( !ok ){
+	      std::cerr << "Syntax Error in tunings file, line " << lineNumber << std::endl;
+	      continue;
+	    }
+	     if(TUNING_DEBUG) std::cout << "Cents: " << cents << std::endl;
+	    
+	  }
+
+	  //add intervals to interval list
+	  intervals->push_back( cents );
+
+	  //remove interval
+	  line.remove( 0, commaPos+1 );
+	  
+	  
+	  // get various spellings
+	  while( !line.isEmpty() ){
+	    line = line.stripWhiteSpace();
+	    
+	    commaPos = line.find( QChar(',') );
+	    if( commaPos == -1 ){	    
+	      if(TUNING_DEBUG)
+		std::cout << "var '" << line << "'" << std::endl;
+	      QString note = line;
+	      QString acc = note;
+	      acc.remove( 0, 1 ); 
+	      note.remove( 1, note.length() -1 ); 
+	      if(TUNING_DEBUG) std::cout << "Acc " << acc << std::endl;
+	      if(TUNING_DEBUG)  std::cout << "Pitch Class " << note << std::endl;
+	      
+	      PitchSpelling p( note.at(0).latin1(), accMap.find(atoi(acc.latin1()))->second );
+	      //insert into spelling list
+	      spellings->insert( SpellingListItem( intervals->size()-2, p ) );
+
+	      line = QString::null;
+	      if(TUNING_DEBUG){
+		std::cout << "Translated variation '" << p << "'" << std::endl;
+		std::cout << std::endl;
+	      }
+	    }
+	    else{
+	      QString note = line;
+	      note.remove( commaPos, note.length() - commaPos );
+	      QString acc = note;
+	      acc.remove( 0, 1 ); 
+	      note.remove( 1, note.length() -1 ); 
+	      if(TUNING_DEBUG) std::cout << "Acc " << acc << std::endl;
+	      if(TUNING_DEBUG) std::cout << "Pitch Class " << note << std::endl;
+	      PitchSpelling p( note.at(0).latin1(), accMap.find(atoi(acc.latin1()))->second );
+	      line.remove( 0, commaPos+1 );
+
+	      //insert into spelling list
+	      spellings->insert( SpellingListItem( intervals->size()-2, p ) );
+
+	      if(TUNING_DEBUG)
+		std::cout << "Translated variation '" << p << "'" << std::endl;
+	    }
+	    
+	    
+	  }
+	  if(TUNING_DEBUG)
+	    std::cout << std::endl;	
+	}
+	
+      }
+      fin.close();
+      if( inTuningDefinition ){
+	if( TUNING_DEBUG ) std::cout << "End of tuning " << tuningName << std::endl;	
+	m_tunings.push_back( new Tuning( tuningName.ascii(), intervals, spellings ) );
+      }
+      
+
+      return &m_tunings;
+  }
+  
+  std::cerr << "Cannot find tunings file\n";
+  return NULL;   
+  
+}
+
+
+
+
+Tuning::Tuning(std::string name, IntervalList *intervals, SpellingList *spellings) :
+  m_rootPitch( 'C', Accidentals::NoAccidental ),
+  m_spellings(spellings),
+  m_intervals(intervals),
+  m_refPitch( 'A', 4 ) {
+  
+  std::cout << "\nTuning::Tuning\n";
+  
+  m_name = name;
+
+  m_size = intervals->size() - 1;
+
+  // set root pitch to C
+  setRootPitch( PitchSpelling( 'C', Accidentals::NoAccidental ) );
+
+  // Set reference pitch to A4 = 440
+  Pitch p( 'A', 4 );
+  setRefNote( p, 440 );
+
+}
+
+
+Tuning::Tuning( const Tuning *tuning ) :
+  m_intervals( tuning->getIntervalList() ),
+  m_spellings ( tuning->getSpellingList() ),
+  m_rootPitch( tuning->getRootPitch() ),
+  m_refPitch( tuning->getRefPitch() )  {
+
+  m_size = m_intervals->size();
+
+
+  m_name = tuning->getName();
+  
+  std::cout << "Given name: " << tuning->getName() << " " << &tuning->getName() << std::endl;
+  std::cout << "Stored name: " << m_name << " " << &m_name << std::endl;
+
+
+  //default A3 = 440;
+  Pitch p=tuning->getRefPitch();
+  PitchSpelling p2=tuning->getRootPitch();
+
+  std::cout << "Tuning::Tuning\n";
+
+  setRootPitch( tuning->getRootPitch() );
+  setRefNote( p, tuning->getRefFreq() );
+
+  std::cout << "Ref note " << m_refPitch.getAsString()
+	    << " " << m_refFreq << std::endl;
+
+  std::cout << "Root note " << m_rootPitch << std::endl;
+
+  std::cout << "Ref freq for C " << m_cRefFreq << std::endl;
+
+}
+
+void Tuning::setRootPitch( PitchSpelling pitch ){
+
+  m_rootPitch = pitch;
+
+  const SpellingListIterator sit = findPitch(pitch);
+  if( sit == m_spellings->end() ){
+    std::cerr << "\nTuning::setRootPitch root pitch not found in tuning!!!!!!!!!\n\n";
+    return;
+  }
+
+  if(TUNING_DEBUG) std::cout << "Root position " << m_rootPosition << std::endl;
+  m_rootPosition = sit->first;
+}
+
+
+
+
+
+
+void Tuning::setRefNote( Pitch pitch, double freq ){
+
+  m_refPitch = pitch;
+  m_refFreq = freq;
+  m_refOctave = pitch.getOctave();
+  PitchSpelling spelling = pitch.getSpelling();
+
+  // position in chromatic scale
+  SpellingListIterator it = findPitch(spelling);
+  if( it == m_spellings->end() ){
+    std::cerr << "Tuning::setRefNote Spelling " << spelling
+	      << " not found in " << m_name << " tuning!\n";
+    return;
+  }
+  int refPosition = it->first;
+
+  // calculate frequency for C in reference octave 
+  // this makes calculation of frequencies easier
+
+  it = findPitch( PitchSpelling('C', Accidentals::NoAccidental) );
+  if( it == m_spellings->end() ){
+    std::cerr << "Tuning::setRefNote 'C' not found in " << m_name << " tuning!\n";
+    return;
+  }
+
+  m_cPosition = it->first;
+
+  // find position of C relative to root note 
+  int cInterval = m_cPosition - m_rootPosition;
+  if( cInterval < 0 ) cInterval += m_size;
+
+  // cents above root note for C
+  double cents = (*m_intervals)[cInterval];
+
+  // cents above root note for reference note
+  int refInterval = refPosition - m_rootPosition;
+  if( refInterval < 0 ) refInterval += m_size;
+
+  double refCents = (*m_intervals)[refInterval];
+
+  // relative cents from reference note to target note
+  double relativeCents = cents - refCents;
+  if( relativeCents > 0 ) relativeCents -= 1200;
+
+  //frequency ratio between reference and target notes
+  double ratio = pow( 2, relativeCents/1200 );
+
+  m_cRefFreq = m_refFreq * ratio;
+
+  if(TUNING_DEBUG){
+    std::cout << "c Position " << m_cPosition << std::endl
+	      << "c interval " << cInterval << std::endl
+	      << "c Cents " << cents << std::endl
+	      << "Ref position " << refPosition << std::endl
+	      << "ref interval " << refInterval << std::endl
+	      << "ref Cents " << refCents << std::endl
+	      << "c freq " << m_cRefFreq << std::endl
+	      << "Ref octave " << m_refOctave << std::endl;
+  }  
+}
+
+double Tuning::getFrequency( Pitch p ) const {
+
+  // make note spelling
+  PitchSpelling spelling = p.getSpelling();
+
+  int octave = p.getOctave();
+
+  // position in chromatic scale
+  const SpellingListIterator it = findPitch(spelling);
+  if( it == m_spellings->end() ){
+    std::cerr << "Tuning::getFreq  Spelling '" << spelling 
+	      << "' not found in " << m_name << " tuning!\n";
+    return 0;
+  }
+  int position = it->first;
+
+  // calculate the cents above C
+  double relativeCents = intervalFromC( position );
+
+  //frequency ratio between reference and target notes
+  double ratio = pow( 2, relativeCents/1200 );
+
+  /*
+    B#  occurs in the same octave as the C immediatley above them.
+    In 12ET this is true, but not in all tunings. 
+    Solution: When B# and C are not equivalent spellings,
+    decrement the octave of every B#.
+
+    Must change this to accomodate other tunings eg. anything equivalent to C, but with
+    a note name less than C
+
+  */
+  if( spelling == PitchSpelling( 'B', Accidentals::Sharp ) && position != m_cPosition ){
+    octave--;
+  }
+
+
+  int octaveDifference = octave - m_refOctave;
+
+
+  int octaveRatio = (int)pow( 2, octaveDifference );
+
+  ratio *= octaveRatio;
+
+  double freq = m_cRefFreq * ratio;
+
+
+
+
+  if( TUNING_DEBUG ){
+    std::cout << "Spelling " << spelling << std::endl
+	      << "cents from reference to target" << relativeCents << std::endl
+	      << "refOctave " << m_refOctave << std::endl
+	      << "octave " << octave << std::endl
+	      << "octave ratio " << octaveRatio << std::endl
+	      << "ratio " << ratio << std::endl
+	      << "ref freq " << m_refFreq << std::endl
+	      << "freq " << freq << std::endl;
+    return freq;
+  }
+
+}
+
+
+
+Pitch Tuning::getPitch( double frequency, bool preferSharps ) const{
+
+  if(TUNING_DEBUG)
+  std::cout << "Tuning::getPitch\n";
+
+  // calculate cents between refC and frequency
+  double totalCents = 1200.0 * (log( frequency/m_cRefFreq ) / log( 2.0 ));
+  std::cout << "Total cents " << totalCents << std::endl;
+
+  // calculate and remove octave difference
+  int octDiff = (int)( totalCents / m_intervals->at(m_size) );
+  if( totalCents < 0 ) --octDiff;
+  double intervalCents = totalCents - octDiff*m_intervals->at(m_size);
+
+  // Iterate through intervals, pick closest interval
+  int interval = 0;
+  double minDiff = 9999999;
+  for( unsigned int i=0; i<m_intervals->size(); i++ ){
+
+    double cInt = intervalFromC(i);
+    double diff =  cInt- intervalCents;
+    if( fabs( diff ) < fabs( minDiff ) ){
+      minDiff = diff;
+      interval = i;
+    }
+
+    // Allows for wrapping of octave around C
+    if( cInt == 0.0 ){
+      diff =  cInt - (intervalCents-1200);
+      if( fabs( diff ) < fabs( minDiff ) ){
+	minDiff = diff;
+	interval = i;
+      }
+    }
+
+
+  }
+
+  if(TUNING_DEBUG)
+  std::cout << "Tuning::getPitch\n"
+	    << "\tGiven frequency: " << frequency << "Hz\n"
+	    << "\tOctave diff " << octDiff << std::endl
+	    << "\tInterval diff " << intervalCents << std::endl
+	    << "\tChosen interval: " << interval << " " << m_intervals->at(interval) << "cents\n"
+	    << "\tremainder: " << minDiff << std::endl
+	    << "Possible spellings:\n";
+
+ 
+  std::pair< SpellingListIterator, SpellingListIterator > range;
+  range = m_spellings->equal_range( interval );
+
+  SpellingListIterator chosenSpelling;
+
+  if(TUNING_DEBUG)
+  for ( SpellingListIterator it = range.first;
+	it != range.second;
+	++it ){
+    std::cout << "\t" << it->second << std::endl;
+
+  }
+
+  int octave = m_refOctave + octDiff;
+
+  // If the chosen interval is enharmonically equivalent to C, but 
+  // the remainder is positive, the octave must be incremented.
+  if( minDiff > 0 && intervalFromC(interval) == 0 )
+    ++octave;
+
+  // choose spelling from equivalent spellings for interval
+
+  /*
+    Must develop key class which will determine whether 
+    a particular pitch is in the current key. This
+    spelling will be achosen, unless otherwise specified
+    in preferredAccidental.
+   */
+
+  // Check for natural pitch first
+  for ( SpellingListIterator it = range.first;
+	it != range.second;
+	++it ){
+    if( it->second.second == Accidentals::NoAccidental )
+      return Pitch( it->second, octave );
+  }
+
+  //Check for sharp accidental first
+  if( preferSharps ){
+    for ( SpellingListIterator it = range.first;
+	  it != range.second;
+	  ++it ){
+      if( it->second.second == Accidentals::Sharp )
+	return Pitch( it->second, 
+		      it->second.first == 'B' ? octave : --octave );
+    }
+  }
+
+  //Just return the first available spelling
+  return Pitch( range.first->second, octave );
+
+}
+
+
+
+
+
+
+
+
+/**
+ * Prints to std out for debugging
+ */
+void Tuning::printTuning() const{
+
+  std::cout << "Print Tuning\n";
+  std::cout << "Name: '" << m_name << "'\n";
+
+  std::cout << "Ref note " << m_refPitch.getAsString()
+	    << " " << m_refFreq <<std::endl;
+
+  std::cout << "Ref freq for C " << m_cRefFreq << std::endl;
+
+  std::cout << "Root note " <<  m_rootPitch.first << m_rootPitch.second
+	    << std::endl;
+       
+  for( SpellingListIterator sit = m_spellings->begin();
+       sit != m_spellings->end(); sit++ ){
+
+    std::cout << "Spelling '" << sit->second
+	      << "'\tinterval " << sit->first
+	      << std::endl;
+    
+  }
+
+  for( unsigned int i=0; i != m_intervals->size(); i++ ){ 
+    std::cout << "Interval '" << i
+	      << "'\tinterval " << m_intervals->at(i)
+	      << std::endl;
+    
+  }
+  std::cout << "Tuning repeats every " << m_intervals->at( m_size ) << " cents\n";
+
+
+  std::cout << "Done." << std::endl;
+
+
+}
+
+
+
+
+int Tuning::getInterval( Pitch p1, Pitch p2 ) const{
+
+
+  // Calculate position within octave
+  int step1 = findPitch( p1.getSpelling() )->first - m_cPosition;
+  if( step1 < 0 ) step1 += m_size;
+
+
+  int step2 = findPitch( p2.getSpelling() )->first - m_cPosition;
+  if( step2 < 0 ) step2 += m_size;
+
+  int stepDiff;
+
+  int octDiff = p2.getOctave() - p1.getOctave();
+
+  std::cout << "Step1 " << step1 << std::endl
+       << "step2 " << step2 << std::endl
+       << "oct" << octDiff << std::endl;
+
+  if( octDiff >= 0 ){
+    stepDiff = step2 - step1;
+    return octDiff * m_size + stepDiff;
+  }
+  else{
+    ++octDiff;
+    stepDiff = step1 - step2;
+    return octDiff * m_size + (-12-stepDiff);
+
+  }
+
+}
+
+
+
+int Tuning::getMidiNumber( Pitch p ) const{
+}
+
+
+  // calculate interval from reference midi note
+
+
+
+
+PitchSpelling Tuning::getRootPitch() const { return m_rootPitch; }
+Pitch Tuning::getRefPitch() const { return m_refPitch; }
+double Tuning::getRefFreq() const{ return m_refFreq; }
+const std::string Tuning::getName() const { return m_name; }
+SpellingList *Tuning::getSpellingList() const{ return m_spellings; }
+IntervalList *Tuning::getIntervalList() const{ return m_intervals; }
+
+
+
+// Finds pitch spelling in spellings list
+SpellingListIterator Tuning::findPitch( PitchSpelling ps ) const{
+
+  SpellingListIterator sit;
+  for( sit = m_spellings->begin();
+       sit != m_spellings->end();
+       sit++ ){
+    
+    if( sit->second == ps )
+      return sit; 
+  }
+  std::cout << "findPitch(...) : pitch spelling not found in list!!!\n";
+  return sit;
+}
+
+
+// Returns the interval between C and given interval
+// taking root note into account
+double Tuning::intervalFromC( int position ) const{
+
+  // Cents above root note (interval)
+  int relativePosition = position - m_rootPosition;
+  if( relativePosition < 0 ) relativePosition += m_size;
+  double cents = (*m_intervals)[relativePosition];
+
+  // cents above root note for reference note ( C )
+  int refInterval = m_cPosition - m_rootPosition;
+  if( refInterval < 0 ) refInterval += m_size;
+  double refCents = (*m_intervals)[refInterval];
+
+  // relative cents from C to interval
+  double relativeCents = cents - refCents;
+  if( relativeCents < 0 ) relativeCents += 1200;
+
+  if(TUNING_DEBUG)
+  std::cout << "Tuning::intervalFromC\n"
+	    << "\tposition relative to C " << position << std::endl
+	    << "\tposition relative to root " << relativePosition << std::endl
+	    << "\tcents from root " << cents << std::endl
+	    << "\tposition of C relative to root " << refInterval << std::endl
+	    << "\troot to C interval " << refCents << std::endl
+	    << "\tcents " << relativeCents
+	    << std::endl;
+ 
+  return relativeCents;
+
+}
+
+typedef std::pair<int, Pitch> PitchMapItem;
+typedef std::multimap<int, Pitch> PitchMap;
+typedef std::multimap<int, Pitch>::iterator PitchMapIterator;
+typedef std::map<int, double> freqMap;
+
+PitchMap pitchMap;
+
+
+
+
+
+void Tuning::createTuningMaps(){
+
+
+  int octMin = 2;
+  int octMax = 4;
+
+  int midiRefNo = 60;
+  Pitch midiRefPitch( 'C', 3 );
+
+
+  //iterate from midi reference up to upper octave limit filling maps
+
+
+  // find midi ref pitch in spellings map
+  SpellingListIterator sit = findPitch( midiRefPitch.getSpelling() );
+
+
+  int bPos = findPitch( PitchSpelling( 'B', Accidentals::NoAccidental ) )->first;
+  int cPos = findPitch( PitchSpelling( 'C', Accidentals::NoAccidental ) )->first;
+
+
+  // Iterating values
+  int currentOctave = midiRefPitch.getOctave();
+  int spellingPosition = findPitch( midiRefPitch.getSpelling() )->first;  // contains place in spellings
+  int midiNote=midiRefNo;                            // contains current midi no
+
+  while( currentOctave <= octMax ){
+
+    // Get all pitches for current midi note
+    std::pair<SpellingListIterator, SpellingListIterator> range;
+    range = m_spellings->equal_range( spellingPosition );
+
+    // Iterate through each pitch
+    for( SpellingListIterator sit = range.first;
+	 sit != range.second; ++sit ){
+
+      PitchSpelling ps = sit->second;
+      int pos = sit->first;
+    
+      int notatedOctave = currentOctave;
+
+      /*
+	This test makes sure that octaves are notated correctly.
+	If a spelling with any sharp inflection occurs after B,
+	but the uninflected spelling occurs before C, the notated 
+	octave should be one more than the sounding octave
+	Eg. B#3 == C4
+      */
+      if( ps.second == Accidentals::QuarterSharp ||
+	  ps.second == Accidentals::Sharp ||
+	  ps.second == Accidentals::ThreeQuarterSharp ||
+	  ps.second == Accidentals::DoubleSharp ){
+	
+	
+	// position of spelling relative to B
+	int posFromB = pos - bPos;
+	
+	// position of uninflected spelling relative to C
+	int naturalPos = findPitch( PitchSpelling( ps.first, Accidentals::NoAccidental ) )->first;
+	int naturalFromC = naturalPos - cPos;
+	
+	// wrap positions to +-6
+	if( posFromB > 6 ) posFromB -= 12;
+	if( naturalFromC > 6 ) naturalFromC -= 12;
+	
+	
+	if( posFromB > 0 && naturalFromC < 0 )
+	  --notatedOctave;
+      }
+      /*
+	Conversely for any flattened spellings,
+	If the spelling is below C, but the uninflected spelling 
+	occurs above B, the notated octave is one more than the 
+	sounding octave.
+	Eg. Cb4 = B3
+      */
+      else if( ps.second == Accidentals::QuarterFlat ||
+	       ps.second == Accidentals::Flat ||
+	       ps.second == Accidentals::ThreeQuarterFlat ||
+	       ps.second == Accidentals::DoubleFlat ){
+	
+	// position of spelling relative to C
+	int posFromC = pos - cPos;
+	
+	// position of uninflected spelling relative to B
+	int naturalPos = findPitch( PitchSpelling( ps.first, Accidentals::NoAccidental ) )->first;
+	int naturalFromB = naturalPos - bPos;
+	
+	// wrap positions to +-6
+	if( posFromC > 6 ) posFromC -= 12;
+	if( naturalFromB > 6 ) naturalFromB -= 12;
+	
+	if( posFromC < 0 && naturalFromB > 0 )
+	  ++notatedOctave;
+	
+      }
+      PitchMapItem item( PitchMapItem(midiNote, Pitch(ps, notatedOctave)) );
+      pitchMap.insert( item );
+
+
+
+    }
+
+    // Iterate values, wrap spelling position if needs be
+    // increment octave on C
+    ++midiNote;
+    ++spellingPosition;
+    if( spellingPosition == m_size ) spellingPosition = 0;
+    if( spellingPosition == cPos ) ++currentOctave;
+
+  }
+  
+  // Print out pitch map
+  for( PitchMapIterator p = pitchMap.begin();  
+       p != pitchMap.end(); ++p )
+    std::cout << p->first << "\t" << p->second << std::endl;
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+

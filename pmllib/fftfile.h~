@@ -1,0 +1,16 @@
+#ifndef FFT_FILE_H_
+#define FFT_FILE_H_
+
+class SoundFile;
+
+/*
+  Later change code to use SDIF...
+ */
+
+class FFTFile{
+
+
+
+
+
+};

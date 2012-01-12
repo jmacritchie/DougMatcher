@@ -1,0 +1,158 @@
+
+/**
+ * Sound file C++ wrapper. Version 0.1, D.McGilvray http://cmt/gla/ac/uk
+ * Requires libsndfile. Released under the GNU General Public License.
+ */
+
+
+
+#include "error.h"
+#include "soundfile.h"
+#include <qtextstream.h>
+#include <qfile.h>
+#include <qstring.h>
+#include <qfiledialog.h>
+#include <qdir.h>
+#include <iostream>
+
+using namespace std;
+
+SoundFile::SoundFile():
+  m_data(0) {
+}
+
+
+SoundFile::~SoundFile(){
+  delete m_sf;
+  delete m_data;
+}
+
+int SoundFile::sampleRate(){ return m_sampleRate; }
+int SoundFile::channels(){ return m_channels; }
+int SoundFile::length(){ return m_samples; }
+double *SoundFile::data(){ return m_data; }
+
+bool SoundFile::openFile(){
+
+  QString filename = QFileDialog::getOpenFileName( QDir::currentDirPath(),
+						   "Formats (*.wav *.aiff *.au)",
+						   0,
+						   "open file dialog",
+						   "Choose a file" );
+
+
+
+
+  if( filename == QString::null ){
+    error(); cout << "Open file cancelled\n";
+    return false;
+  }
+
+  m_filename = filename.ascii();
+
+  SF_INFO sfInfo;
+  m_sf = sf_open(m_filename.c_str(), SFM_READ, &sfInfo) ;
+  
+  if( sf_error(m_sf) ){
+    error(); cout << "error opening file\n";
+  }
+
+  m_sampleRate = sfInfo.samplerate;
+  m_channels = sfInfo.channels;
+  m_samples = sfInfo.frames;
+
+  QString s;
+  QTextStream ts(&s, IO_WriteOnly);
+  ts << "sample rate\t= " << m_sampleRate << endl
+     << "channels   \t= " << m_channels << endl
+     << "samples     \t= " << m_samples << endl;
+  cout << s << endl;
+
+  if( m_channels > 1 )
+    cout << "Only first channel will be analysed!\n";
+
+  cout << "get data\n";
+  getData(); //extract audio data
+  cout << "got it.\n";
+  return true;
+
+}
+
+
+void SoundFile::getData(){
+  
+  if(m_data) // free existing data
+    free(m_data);
+  
+  m_data = (double*)malloc( sizeof(double)*m_samples );
+  double frame[m_channels];
+  for( int i=0; i<m_samples; i++ ){
+    if( !sf_readf_double( m_sf, frame, 1 ) ) cerr << "End of file reached prematurely!\n";
+    m_data[i] = frame[0];
+    if( m_data[i] > 1 || m_data[i] < -1 ){
+      cout << i << " over thing\n";
+    }
+
+  }
+  sf_close( m_sf );
+  //plot();
+
+  cout << "First 10 audio samples:\n";
+  for( int i=0; i<10; i++ ){
+    cout << m_data[i];
+  }
+  cout << endl;
+
+
+}
+
+
+
+void SoundFile::plot(){
+  plot( 0, m_samples ); 
+}
+
+void SoundFile::plot( long start, long end ){
+  
+  if( !m_data ) cerr << "cannot open file!";
+  else{
+    
+    //open datafile
+    QFile dataFile("temp.dat");
+    dataFile.open(IO_WriteOnly);
+    QTextStream datas(&dataFile);
+    
+    
+    long length = end - start;
+
+    for( double i=start; i<10000; i++ ){
+      long currentSample = (long)( start + length*(i/10000.0) );
+      datas << currentSample << "\t" 
+	    << m_data[currentSample] << endl;
+    }
+    
+    dataFile.close();
+    
+    //open gnuplot
+    FILE *gnuplot;
+    gnuplot = popen( "gnuplot -persist", "w" );
+    QTextStream gnu(gnuplot, IO_WriteOnly);
+    
+    gnu << "set xlabel 'Sample (Sample rate=" << m_sampleRate << "Hz)'\n"
+	<< "plot 'temp.dat' using 1:2 title 'Waveform' with boxes\n";
+    
+    fflush( gnuplot );
+    pclose( gnuplot );
+
+  }
+  
+}
+
+
+long SoundFile::sampleFromTime( double time ){
+  return m_sampleRate * time;
+}
+
+double SoundFile::timeFromSample( long sample ){
+  return double(sample) / m_sampleRate;
+}

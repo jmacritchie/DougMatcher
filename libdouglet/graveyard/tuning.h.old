@@ -1,0 +1,200 @@
+
+
+
+/*
+This is an old copy of the tuning class, it contains mostly code to translate
+pitch & frequency on a per-note basis. This was abandoned in favour of the
+hash table method which is populated during class creation/modification.
+(The begining stages of the population can be seen in the createTuningMaps method)
+*/
+
+
+
+
+
+
+#ifndef TUNING_H_
+#define TUNING_H_
+
+
+#include <vector>
+#include <string>
+#include <map>
+#include <utility>
+#include "pitch.h"
+
+class Pitch;
+
+/**
+ * Defines the relative order and equivalencies of pitch spellings
+ * Eg. in 12ET <C, 0> <C#, 1> <Bb, 1>
+ */
+typedef std::pair< int, PitchSpelling > SpellingListItem;
+typedef std::multimap< int, PitchSpelling > SpellingList;
+typedef std::multimap< int, PitchSpelling >::iterator SpellingListIterator;
+
+
+/**
+ * Lists the intervals in the scale, in order, as cents from the root note.
+ * Eg. 12ET would have 13 values where [0]=0, [1]=100, [12]=1200.
+ * This allows for scales not based on a perfect octave (any examples?)
+ */
+typedef std::vector< double > IntervalList;
+typedef std::vector< double >::iterator IntervalListIterator;
+
+
+/**
+ * Defines the tuning system used, and allows conversion
+ * between pitch, frequency, and midi notes. Should be extended
+ * to accomodate keys.
+ */
+class Tuning{
+
+ public: 
+
+  /**
+   * Construct a tuning with specified name, and interval & 
+   * spelling lists. 
+   */
+  Tuning(std::string name, IntervalList *intervals, 
+	 SpellingList *spellings);
+
+  /**
+   * Copy the given tuning.
+   */
+  Tuning( const Tuning *tuning );
+
+  /**
+   * Get list of possible tunings from tuning file
+   */
+  static std::vector<Tuning*>* getTunings( std::string filename );
+
+  /**
+   * Set the reference pitch and frequency
+   */
+  void setRefNote( Pitch, double freq );
+
+  /**
+   * Set the root pitch (the pitch from which intervals will be calculated)
+   * This is has no effect on equal tempered scales.
+   */ 
+  void setRootPitch( PitchSpelling root );
+
+  /**
+   * Get frequency of pitch 
+   */
+  double getFrequency( Pitch pitch ) const;
+
+
+  /**
+   * Calculates pitch from frequency. If possible, it
+   * will return a pitch spelling with no accidental.
+   * Failing that it will attempt to return a spelling
+   * with a sharp or flat (depending on @preferSharps).
+   * Failing that it will return the first possible spelling.
+   */
+  Pitch getPitch( double frequency, bool preferSharps ) const;
+
+  /// Better implementation of above method
+  //bool getPitch( double frequency, Key key );
+
+
+  /**
+   * Returns midi note of pitch
+   */
+  int getMidiNumber( Pitch p ) const;
+
+  /**
+   * Calculates pitch based on midi number as in 'getPitch'
+   */
+  Pitch getPitch( int midiNo, bool preferSharps ) const;
+
+  /// Better implementation of above method
+  //Pitch getPitch( int midiNo, Key key );
+
+  /**
+   * Calculates frequency of midi note.
+   */
+  double getFrequency( int midi ) const;
+
+  /**
+   * Given frequency, returns the nearest midi note.
+   * If diff is given, the method will set diff to be
+   * the difference between the supplied frequency and 
+   * the exact frequency of the midi note in cents.
+   */
+  int getMidiNumber( double freq, double *diff=NULL ) const;
+
+
+
+  /**
+   * Returns the number of steps between the
+   * two pitches in the current tuning.
+   */
+  int getInterval( Pitch p1, Pitch p2 ) const;
+
+
+
+
+  /// Returns the name of the tuning
+  const std::string getName() const;
+  SpellingList *getSpellingList() const;
+  IntervalList *getIntervalList() const;
+  PitchSpelling getRootPitch() const;
+  Pitch getRefPitch() const;
+  double getRefFreq() const;
+
+  /// Prints a summary of the tuning to std out
+  void printTuning() const;
+
+  void createTuningMaps();
+ protected:
+
+  std::string m_name;
+  /// Root pitch
+  PitchSpelling m_rootPitch;
+  /// Root pitch
+  int m_rootPosition;
+
+  /// Reference pitch
+  Pitch m_refPitch;
+  /// Reference pitch
+  int m_refOctave;
+  /// Reference pitch
+  int m_cPosition;
+  /// Reference pitch
+  double  m_refFreq;
+  /// Frequency of C in reference octave
+  double m_cRefFreq;
+  /// Number of intervals
+  int m_size;
+  /// Interval of 'octave'
+  double octaveCents;
+  SpellingList *m_spellings;
+  IntervalList *m_intervals;
+
+  /// Contains tunings
+  static std::vector<Tuning*> m_tunings;
+
+
+  /// Used by methods to find interval for pitch spelling 
+  SpellingListIterator findPitch( PitchSpelling ps ) const;
+
+  /**
+   * Calculates interval in cents from C. 
+   * Position is the position as found in SpellingList
+   * This takes into account the root note and
+   * is essential for non-ET tunings
+   */
+  double intervalFromC( int position ) const;
+
+
+};
+
+
+
+
+
+
+
+#endif

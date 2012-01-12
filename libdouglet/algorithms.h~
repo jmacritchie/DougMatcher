@@ -1,0 +1,82 @@
+#ifndef ALGORITHMS_H
+#define ALGORITHMS_H
+
+#include <string>
+#include <complex.h>
+#include <sstream>
+#include <vector>
+
+
+/**
+ * Contains assorted useful algorithms.
+ *
+ */
+namespace Algorithms{
+
+  /// Converts an integer into a string.
+  std::string itoa( int i );
+
+  /// Converts a floating point number into a string.
+  std::string ftoa( double f );
+
+  /// Finds greatest common denominator
+  int gcd(int,int);
+  /// Finds least common multiple
+  int lcm(int,int);
+
+  /// Calculates the autocorrelation on the data contained in @frame which is of 
+  void autocorrelation( int lags, double *ac, double *frame, int length );
+
+  /// Plots the magnitude of an array of complex data. (Requires gnuplot)
+  void plotComplexData( std::string title, complex<double> *data, int size );
+  /// Plots an array of data. (Requires gnuplot)
+  void plotDoubleData( std::string title, double *data, int size );
+  /// Plots an array of data coordinates. (Requires gnuplot)
+  void plotDoubleData( std::string title = "defaulttitle", std::vector<std::pair<double,double> > *data = 0,
+		       std::string outfilename = "" );//ben added default value for outfilename and title
+
+  /**
+   * Given an array @param data of size @param size, will subject the 
+   * data to a Hamming window of size @param wSize.
+   */
+  void hamming( double *data, int wSize, int size=0 );
+  void hamming( double *inData, double *outData, int wSize, int size=0 );
+
+  /**
+   * Calculates freq difference in cents. Optionally ignore octave difference.
+   */
+  double centsDiff( double f1, double f2, bool ignoreOctave=false );
+
+
+
+  /**
+   * Calculates pitch from frequency. 12ET only. (Inflected notes are always sharp)
+   */
+
+  void getPitch( double freq, char* step, int *octave, char *acc, double refC=261  );
+
+
+}
+
+class GnuStream : public std::ostringstream {
+  
+    FILE *gnuplot;
+
+public:
+  GnuStream();
+  ~GnuStream();
+  void plot();
+  void outputPNG( std::string filename );
+  void outputX11();
+
+};
+
+
+class Scilab : public std::ostringstream {
+  FILE *scilab;
+ public:
+  Scilab();
+  ~Scilab();
+};
+
+#endif

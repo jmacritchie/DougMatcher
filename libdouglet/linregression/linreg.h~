@@ -1,0 +1,49 @@
+
+#include <list>
+#include <vector>
+
+typedef enum{ PEAK, TROUGH, UP, DOWN, LEVEL_UP, 
+		LEVEL_DOWN, UP_LEVEL, DOWN_LEVEL } Shape;
+
+typedef struct{
+  double x;
+  double y;
+}Point;
+
+
+typedef std::vector<Point> PointList;
+typedef std::vector<Point>::iterator LineIt;
+
+class BFLine{
+  
+public:
+  BFLine();
+  BFLine( PointList &points );
+  
+  void addPoint( Point p ); // add point and sort
+  void appendPoint( Point p );
+  void prependPoint( Point p );
+  
+  void removeLastPoint();
+  void removeFirstPoint();
+  void removePoint( Point &p );
+  
+  double getBFGradient();
+  double getBFIntercept();
+
+  double xFromY( double y );
+  double yFromX( double x );
+  
+protected:
+  
+  double grad_;  // gradient
+  double inter_; // y when x=0; 
+
+  // hold total values for easy extension of line
+  double sumX_;
+  double sumY_;
+  double sumX2_;
+  double sumY2_;
+  std::vector<Point> points_;
+};
+

@@ -1,0 +1,412 @@
+
+
+/***************************************************************************
+                              pitchtracker.cpp
+                             -------------------
+    email                : D.Mcgilvray@elec.gla.ac.uk
+    website              : http://cmt.gla.ac.uk
+    copyright            : (C) 2004 by D.McGilvray & CMT
+
+***************************************************************************/
+
+/***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ ***************************************************************************/
+
+#include <stdio.h>
+#include <iostream>
+#include <fstream>
+
+#include "pitchtracker.h"
+
+#define PT_DEBUG 0
+#define MIN_THRESHOLD 1
+
+
+using namespace std;   
+
+const PitchTracker::Method PitchTracker::PARTIAL = "Partial";
+const PitchTracker::Method PitchTracker::AUTOCORRELATION = "Autocorrelation";
+const PitchTracker::Method PitchTracker::HPS = "Harmonic Product Spectrum";
+const PitchTracker::Method PitchTracker::SQDIFF = "Squared Difference";
+
+PitchTracker::PitchTracker( int fs, int ss, int sr ) {
+
+  frameSize = fs;
+  stepSize = ss;
+  sampleRate = sr;
+  
+  methods = new vector<PitchTracker::Method>;
+  methods->push_back( AUTOCORRELATION );
+  methods->push_back( HPS );
+
+
+  frame = (double *)malloc( sizeof(double) * (frameSize+stepSize) );
+
+  // allocate fft buffers
+  in1 = (double *)fftw_malloc(sizeof(double) * (frameSize) );
+  in2 = (double *)fftw_malloc(sizeof(double) * (frameSize) );
+  ft1 = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * frameSize );
+  ft2 = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * frameSize );
+
+  //for cepstrum
+  cepstralIn = (double *)fftw_malloc(sizeof(double) * frameSize );
+  cepstralOut = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * frameSize );
+
+  // create fft plans
+  p1= fftw_plan_dft_r2c_1d( frameSize, in1, ft1, FFTW_MEASURE );
+  p2= fftw_plan_dft_r2c_1d( frameSize, in2, ft2, FFTW_MEASURE );
+
+  //for autocorrelation
+  pc= fftw_plan_dft_r2c_1d( frameSize, cepstralIn, cepstralOut, FFTW_MEASURE );
+
+  //set default method
+  method = AUTOCORRELATION;
+}    
+
+
+
+vector<PitchTracker::Method> *PitchTracker::getMethods(){
+  return methods;
+}
+
+void PitchTracker::setMethod( PitchTracker::Method method ){
+  cout << "PitchTracker::setMethod " << method << endl;
+
+  if( method == AUTOCORRELATION ||
+      method == HPS) {
+    this->method = method;
+  }
+  else{
+    cout << "PitchTracker::setMethod Not a method!\n";
+  }
+}
+
+double PitchTracker::getPitch(){
+
+  double freq = 0;
+
+  // Fill input buffers with data for two overlapping frames. 
+  for( int c=0; c<frameSize; c++ ){
+    double window = 0.5 - 0.5*( cos(2*M_PI*c/frameSize) );
+    in1[c] = frame[c] * window;
+    in2[c] = frame[c+stepSize] *window ;
+  }
+  // Perform DFT
+  fftw_execute( p1 );
+  fftw_execute( p2 );
+
+  if( method == AUTOCORRELATION )
+    freq = autocorrelation();
+  else if( method == HPS )
+    freq = hps();
+  else if( method == SQDIFF )
+    freq = sqdiff();
+  else{
+    return 0;
+  }
+    
+  //cout << "Freq " << freq << endl;
+  return freq;
+}
+
+double *PitchTracker::getInBuffer(){ return frame; }
+
+PitchTracker::~PitchTracker(){
+  free(in1);
+  free(in2);
+  free(ft1);
+  free(ft2);
+  free(cepstralIn);
+  free(cepstralOut);
+  fftw_destroy_plan(p1);
+  fftw_destroy_plan(p2);
+  fftw_destroy_plan(pc);
+  free(frame);
+  delete methods;
+
+}
+
+
+
+
+double mid[3];
+
+double filter( double nextVal ){
+
+  double a[2] = {1,2};
+  double b[2] = {1,2};
+
+  mid[0] = nextVal - mid[1]*b[0] -mid[2]*b[1];
+  
+  mid[2] = mid[1];
+  mid[1] = mid[0];
+
+  return mid[0] + mid[1]*a[0] + mid[2]*a[1];
+}
+
+
+
+
+
+/**
+   Calculates pitch based on squared difference function.
+*/
+
+double PitchTracker::sqdiff() {
+
+  /*
+  double sqdiff[frameSize/2];
+  memset( sqdiff, 0, sizeof(double)*frameSize/2 );
+
+  for( int c=0; c<frameSize/2; c++ ){
+    for( int t=0;, t<frameSize/2; c++ ){
+      double diff = (frame[c] - frame[c-i]);
+      sqdiff[c] += diff*diff;
+    }
+  }
+
+  
+  // search for min after first peak
+
+  double value = 0;
+  double oldValue = 10;
+  double min = ;
+
+  int c=0;
+
+  // get smoothed version of wave
+  double smoothed[frameSize/2];
+  memset( smoothed, 0, sizeof(double)*frameSize/2 );
+
+  for(int i=10; i<(frameSize/2)-10; i++ ){
+    for( int x=-10; x<=10; x++ )
+      smoothed[i] += buff[i+x];
+    smoothed[i] /=21;
+  }
+
+
+  // find peak in smoothed buffer (c must atart after smoothing)
+  // starts at 50
+  c=30; 
+  while( c<(frameSize/4) && smoothed[c] <= smoothed[c+1] ){
+    c++;
+  }
+
+  if( c >= frameSize/4 ){
+    cout << "error: no end to first peak\n";
+    return 0;
+  }
+
+  min=0;
+
+  for( int i=0; i<frameSize/2; i++ ){
+    value = sqdiff[i];
+    //find next trough from end of peak to 588 (75Hz @ SR=44100)
+    if( i>c && i<588 && value > max ){
+      max = value;
+      bin = i;
+    }
+  }
+
+
+double freq = bin
+  
+  return unwrapPhase( FTbin );
+  */
+  return 0;
+}
+
+
+/**
+   Performs Harmonic Product Spectrum frequency estimation
+*/
+double PitchTracker::hps(){
+
+  double max = 0;
+  int fBin = 0;
+
+  //calculate max HPS - only covering 1/6 of framesize 
+  //downsampling by factor of 3 * 1/2 of framesize
+  for( int i=0; i<frameSize/6; i++ ){
+    int i2 = 2*i; int i3 = 3*i;
+    double hps = 
+      abs( complex<double>(ft1[i][0], ft1[i][1]) ) +
+      0.8*abs( complex<double>(ft1[i2][0], ft1[i2][1]) ) +
+      0.6*abs( complex<double>(ft1[i3][0], ft1[i3][1]) );
+    
+    if( max < hps ){
+      max = hps;
+      fBin = i;
+    }
+  }
+
+  //cout << "bin = " << fBin << endl;
+
+  return unwrapPhase( fBin );
+}
+
+
+
+
+/**
+   Calculates autocorrelation from FFT using Wiener-Khinchin Theorem.
+*/
+
+double PitchTracker::autocorrelation() {
+
+  double value = 0;
+  int bin = 0;
+
+  /*
+    Do 2nd FT on abs of original FT. Cepstrum would use Log 
+    instead of square
+  */
+  for( int c=0; c<frameSize/2; c++ ){
+    value = abs(complex<double>(ft1[c][0], ft1[c][1]))/frameSize; // normalise
+    cepstralIn[c] = value;
+    cepstralIn[(frameSize - 1)-c] = 0;//value; //fills second half of fft
+  }
+  fftw_execute( pc );
+  
+  // search for peak after first trough
+  double oldValue = 0;
+  value = 0;
+  double max = 0;
+
+  int c=0;
+
+  double buff[frameSize/2];
+  //fill buffer with magnitudes
+  for( int i=0; i<frameSize/2; i++){
+    buff[i] = abs( complex<double>(cepstralOut[i][0],cepstralOut[i][1]) );
+  }
+
+
+  double smoothed[frameSize/2];
+  for( int i=0; i<10; i++) smoothed[i]=0;
+  for( int i=frameSize/2-10; i<frameSize/2; i++) smoothed[i]=0;
+
+  for(int i=10; i<(frameSize/2)-10; i++ ){
+    smoothed[i] = 0;
+    for( int x=-10; x<=10; x++ )
+      smoothed[i] += buff[i+x];
+    smoothed[i] /=21;
+  }
+
+  // find end of peak in smoothed buffer (c must atart after smoothing)
+  // starts at 50
+  c=30; 
+  while( c<(frameSize/4) && smoothed[c] >= smoothed[c+1] ){
+    c++;
+  }
+
+  if( c >= frameSize/4 ){
+    cout << "error: no end to first peak\n";
+    return 0;
+  }
+
+  max=0;
+
+  for( int i=0; i<frameSize/2; i++ ){
+    value = buff[i];
+    //find next peak from end of peak to 588 (75Hz @ SR=44100)
+    if( i>c && i<588 && value > max ){
+      max = value;
+      bin = i;
+    }
+  }
+
+  if( bin == 0 ){ // avoids occaisional exception when bin==0
+    cout << "bin=0 c=" << c << "\n";
+    for( int i=0; i<frameSize/2; i++ ){
+      //cout << " i " << buff[i];
+    }
+    cout << endl;
+    return 0;
+  }
+
+  int FTbin = round((double)frameSize/bin);
+  double fpb = (double)sampleRate/(double)frameSize;
+
+  int fBin=0;
+  complex<double> cValue = 0;
+  double fMag = 0;
+  
+  fMag = 0;
+  //find localised partial 
+  for( int c=FTbin-2; c<FTbin+2 && c<frameSize/2; c++ ){
+    cValue = complex<double>(ft1[c][0], ft1[c][1]);
+    if( fMag < abs(cValue ) ){        
+      fBin = c;
+      fMag = abs(cValue);
+    }
+  } 
+  
+  return unwrapPhase( FTbin );
+}
+
+
+
+
+/** 
+    Calculates exact frequency of component in fBin. 
+    Assumes FFT has already been applied to both 
+*/
+double PitchTracker::unwrapPhase( int fBin ){
+
+  double oldPhase, fPhase;
+
+  if( abs( complex<double>(ft1[fBin][0], ft1[fBin][1]) ) < MIN_THRESHOLD )
+      return -1;
+
+  complex<double> cVal = complex<double>(ft1[fBin][0], ft1[fBin][1]);
+  oldPhase = arg(cVal);
+  
+  cVal = complex<double>(ft2[fBin][0], ft2[fBin][1]);
+  fPhase = arg(cVal);
+
+
+  double freqPerBin = (double)sampleRate/(double)frameSize;
+  double cf = fBin*freqPerBin;
+  double phaseChange = fPhase-oldPhase;
+  double expected = cf*(double)stepSize/(double)sampleRate;
+  
+  double phaseDiff = phaseChange/(2.0*M_PI) - expected;
+  phaseDiff -= floor(phaseDiff);
+  
+  if( (phaseDiff -= floor(phaseDiff)) > 0.5 ) 
+    phaseDiff -= 1;
+  
+  phaseDiff *= 2*M_PI;
+  
+  double freqDiff = phaseDiff*freqPerBin*((double)frameSize/(double)stepSize)/(2*M_PI);
+  
+  double freq = cf + freqDiff;
+
+  /*
+  cout << "Bin=" << fBin 
+       << "\tFPB="  << freqPerBin
+       << "\tcf="   << cf
+       << "\tfreq=" << freq
+       << "\tphdf=" <<phaseChange
+       << "\texpc=" << expected
+       << endl;
+  */
+
+  return freq;
+}
+
+
+int PitchTracker::getFrameSize(){ return frameSize; }
+void PitchTracker::setFrameSize( int frameSize ){ this->frameSize = frameSize; }
+
+int PitchTracker::getStepSize(){ return stepSize; }
+void PitchTracker::setStepSize( int stepSize ){ this->stepSize = stepSize; }
+
+

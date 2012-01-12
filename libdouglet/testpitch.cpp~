@@ -1,0 +1,30 @@
+
+#include "algorithms.h"
+#include <iostream>
+
+using namespace Algorithms;
+using namespace std;
+
+
+int main( int argc, char* argv ){
+
+  double freq;
+  cout << "Enter frequency for conversion:\n";
+  cin >> freq;
+
+
+  while( freq != 0 ){
+
+    char step;
+    int oct;
+    char acc=' ';
+    
+    getPitch( freq, &step, &oct, &acc, 261 );
+    
+    
+    cout << "Pitch is " << step << oct << acc << endl;
+    
+    cin >> freq;
+  }
+  return 0;
+}

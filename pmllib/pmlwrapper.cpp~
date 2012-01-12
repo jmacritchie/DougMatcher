@@ -1,0 +1,18 @@
+
+
+
+
+
+
+class Performance{
+
+
+  Performance( DOMDocument *doc );
+
+
+
+  std::string operator[]( int i );
+
+
+
+}

@@ -1,0 +1,17 @@
+
+#include "guesture.h"
+#include "pmldocument.h"
+#include "pmlbase.h"
+#include <string>
+
+//make it inherit from PNote
+//in .h file static const char PTrajTag;
+const char* Guesture::PTrajTag = "PTraj";
+
+}
+void Guesture::setPitchTraj(PNote *pnote, string trajectory_list){
+    
+    DOMElement element = pnote->getElement();
+    setSubElementText(m_element, XS(Guesture::PTrajTag), trajectory_list);
+
+}

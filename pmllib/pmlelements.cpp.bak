@@ -1,0 +1,950 @@
+
+
+#include "pmlelements.h"
+#include "pmldocument.h"
+#include "algorithms.h"
+#include "pitch.h"
+
+
+
+#include <string>
+#include <list>
+#include <sstream>
+
+#include <xercesc/dom/DOMDocument.hpp>
+#include <xercesc/dom/DOMElement.hpp>
+#include <xercesc/dom/DOMNodeList.hpp>
+#include <xercesc/util/XMLString.hpp>
+
+using namespace std;
+using namespace Algorithms;
+
+#define XS XMLString::transcode
+
+
+#define ALIGN_TAG "note"
+
+
+const char* SNote::Onset = "starttime";
+
+const char* PerfPart::Tag = "perfpart";
+
+const char* PNote::Tag = "event";
+const char* PNote::TagOnset = "onset";
+const char* PNote::TagOffset = "end";
+const char* PNote::TagFreq = "freq";
+
+const char* PitchEl::TagNote = "step";
+const char* PitchEl::TagAcc = "alter";
+const char* PitchEl::TagOct = "octave";
+
+
+
+DOMElement *XMLBase::getElement(){ return m_element; }
+
+
+ScorePart::ScorePart( DOMElement *element ){
+  m_element = element; 
+
+  // fill vector of notes
+  DOMNodeList *measures = m_element->getElementsByTagName(XS("measure"));
+
+  for( unsigned int m=0; m<measures->getLength(); m++ ){
+
+    DOMElement *measure = (DOMElement*)measures->item(m);
+
+    // Iterate through MEASURE contents
+    for( DOMNode *measureIt = measure->getFirstChild();
+	 measureIt != NULL; 
+	 measureIt = measureIt->getNextSibling() ){
+      
+      if( measureIt->getNodeType() == DOMNode::ELEMENT_NODE ){
+	DOMElement *e = (DOMElement*)measureIt;
+	
+	string tag = XS( e->getTagName() );
+	if( tag == "note" ){
+	  if( e->getElementsByTagName( XS("rest") )->getLength() > 0 ){
+	    //cout << "\trest\n"; //rest not in notes vector;
+	  }
+	  else{	    
+	    //cout << "Note\n";
+	    m_notes.push_back( new SNote(e) );
+	  }
+	}
+      }
+      
+      
+    }
+
+
+  }
+  m_notes.sort();
+}
+
+/**
+ * Not all PML elements will have ID attributes, but
+ * implemented in base for ease.
+ */
+string XMLBase::getID(){ 
+  return XS( m_element->getAttribute( XS("id") ) );
+}
+
+/**
+ * Removes DOM element from document
+ */
+void XMLBase::removeElement(){ 
+
+  m_element->getParentNode()->removeChild( m_element );
+
+}
+
+
+/**
+ * Returns element containing the performance information
+ * for this part. Or NULL if no element exists.
+ */
+PerfPart *ScorePart::getPerfPart(){
+
+  DOMDocument *doc = m_element->getOwnerDocument();
+  DOMElement *root = doc->getDocumentElement();
+  DOMElement *perf = (DOMElement*)root->getElementsByTagName(XS("performance"))->item(0);
+
+  DOMNodeList *perfParts = perf->getElementsByTagName(XS( PerfPart::Tag) );
+
+  for( unsigned int i=0; i<perfParts->getLength(); i++ ){
+    DOMElement *e = (DOMElement*)perfParts->item(i);
+    if( getID() == XS( e->getAttribute(XS("part")) ) ){
+      return new PerfPart(e);
+    }
+  }
+  cout << "No performance part found\n";
+  return new PerfPart(this);
+}
+
+
+SNote *ScorePart::getNote( int index ){ 
+  ScoreIterator it = m_notes.begin();
+  for( int i=0; i<index; i++ )
+    ++it;
+  return *it; ; 
+  
+}
+list<SNote*> *ScorePart::getNotes(){ return &m_notes; }
+
+
+
+
+PerfPart::PerfPart( ScorePart *part ){
+
+  cout << "Creating new performance part\n";
+
+  DOMDocument *doc = part->getElement()->getOwnerDocument();
+  m_scorePart = part;
+  m_element = doc->createElement( XS("perfpart") );
+  
+  //create part attribute
+  m_element->setAttribute( XS("part"), XS( m_scorePart->getID().c_str() ) );
+  
+  //append part to performance element
+  DOMElement *perf = (DOMElement*)doc->getElementsByTagName(XS("performance"))->item(0);
+  perf->appendChild( m_element );
+}
+
+/**
+ * Create PerfPart element
+ */
+PerfPart::PerfPart( DOMElement *element ){
+
+  m_element = element;
+  DOMDocument *doc = m_element->getOwnerDocument();
+
+  const XMLCh *partID = m_element->getAttribute( XS("part") );
+
+  DOMElement *root = m_element->getOwnerDocument()->getDocumentElement();
+  DOMNodeList *parts = root->getElementsByTagName(XS("part"));
+
+  for( unsigned int i=0; i<parts->getLength(); i++ ){
+
+    DOMElement *e = (DOMElement*)parts->item(i);
+
+    if( XS( m_element->getAttribute( XS("id") ) ) ==  XS( e->getAttribute( XS("part") ) )   )
+      {
+	m_scorePart = new ScorePart( e );
+      }
+  }
+
+  DOMNodeList *nl = m_element->getElementsByTagName(XS(PNote::Tag));
+  for( int i=0; i<nl->getLength(); i++ ){
+    m_notes.push_back( new PNote( (DOMElement*)nl->item(i) ) );
+
+  }
+
+}
+
+ScorePart *PerfPart::getScorePart(){ return m_scorePart; }
+
+PNote* PerfPart::createNote( double start, double end, double avgFreq ){
+
+
+  stringstream ss;
+  string text;
+
+  DOMDocument *doc = m_element->getOwnerDocument();
+
+  PNote *note = new PNote( doc, start, end, avgFreq );
+
+  //add note in order
+  addNote( note );
+  return note;
+
+
+}
+
+
+
+int PerfPart::noEvents(){ return m_element->getElementsByTagName(XS(PNote::Tag))->getLength(); }
+
+DOMElement* PerfPart::getNote( int i ){
+
+  DOMNodeList* events = m_element->getElementsByTagName(XS(PNote::Tag));
+  return (DOMElement*)events->item(i);
+
+}
+
+
+void PerfPart::addNote( PNote *note ){
+
+
+  DOMNodeList *notes = m_element->getElementsByTagName( XS(PNote::Tag) );
+
+  if( notes->getLength() == 0 ){
+    m_element->appendChild( note->getElement() );
+  }
+  else{
+
+    PNote lastNote( (DOMElement*)notes->item(notes->getLength()-1) );
+
+    if( lastNote.getOnset() < note->getOnset() ){
+	m_element->appendChild( note->getElement() );
+    }
+    else{
+      for( unsigned int i=0; i<notes->getLength(); i++ ){
+	PNote current( (DOMElement*)notes->item(i) );
+	if( current.getOnset() > note->getOnset() ){
+	  m_element->insertBefore( note->getElement(), current.getElement() );
+	}
+      }
+    } 
+
+  }
+}
+
+
+PerfIterator PerfPart::removeNote( PerfIterator &it ){
+  (*it)->removeElement();   // remove element from document
+  delete( *it );            // delete PNote
+  return m_notes.erase( it ); // erase PNote from note list
+
+}
+
+
+/* Note */
+
+
+int PNote::noteNo = 0;
+
+PNote::PNote( DOMDocument *doc, double onset, double offset, double freq ){
+
+  m_element = doc->createElement( XS(PNote::Tag) );
+  setOnset( onset );
+  setOffset( offset );
+  setFreq( freq );
+
+  noteNo++;
+
+  string id = "pnote" + Algorithms::itoa( noteNo );
+  
+  //ensure this id is not used already
+  while( doc->getElementById( XS(id.c_str()) ) != NULL ){
+    noteNo++;
+    id = "pnote" + Algorithms::itoa( noteNo );
+  }
+
+  m_element->setAttribute( XS("id"), XS(id.c_str()) );
+
+}
+
+PNote::PNote( DOMElement *element ){
+  m_element = element;
+}
+
+void PNote::align( SNote *note, bool correct ){
+
+  DOMNodeList *list = m_element->getElementsByTagName(XS("align"));
+  DOMElement *align;
+
+  if( list->getLength() == 0 ){
+    DOMDocument *doc = m_element->getOwnerDocument();
+    align = doc->createElement(XS("align"));
+    m_element->appendChild(align);
+  }
+  else{
+    align = (DOMElement*)list->item(0);
+  }
+
+  align->setAttribute( XS(ALIGN_TAG), XS(note->getID().c_str()) );
+		       
+  if( correct )
+    setText( align, "correct" );
+  else
+    setText( align, "wrong" );
+
+}
+
+
+double PNote::getOnset(){
+  DOMElement *onset = (DOMElement*)m_element->getElementsByTagName( XS(PNote::TagOnset) )->item(0);
+  string text = getText( onset );
+  return atof( text.c_str() );
+}
+
+double PNote::getOffset(){
+  DOMElement *offset = (DOMElement*)m_element->getElementsByTagName( XS(PNote::TagOffset) )->item(0);
+  string text = getText( offset );
+  return atof( text.c_str() );
+}
+
+double PNote::getFreq(){
+  DOMElement *freq = (DOMElement*)m_element->getElementsByTagName( XS(PNote::TagFreq) )->item(0);
+  string text = getText( freq );
+  return atof( text.c_str() );
+}
+
+
+void PNote::setOffset( double offset ){
+  setSubElementText( m_element, XS(PNote::TagOffset), ftoa(offset) );
+}
+
+void PNote::setFreq( double freq ){
+  setSubElementText( m_element, XS(PNote::TagFreq), ftoa(freq) );
+}
+
+void PNote::setOnset( double onset ){
+  setSubElementText( m_element, XS(PNote::TagOnset), ftoa(onset) );
+}
+
+
+void setSubElementText( DOMElement *element, const XMLCh *subElementName, string text ){
+
+  DOMNodeList *list = element->getElementsByTagName( subElementName );
+
+  DOMElement *subEl;
+
+  if( list->getLength() == 0 ){
+    DOMDocument *doc = element->getOwnerDocument();
+    subEl = doc->createElement( subElementName );
+    element->appendChild( subEl );
+    DOMText *textNode = doc->createTextNode( XS(text.c_str()) );
+    subEl->appendChild( (DOMNode*)textNode );
+  }
+  else{
+    subEl = (DOMElement*)list->item(0);
+    setText( subEl, text );
+  }
+
+}
+
+std::string PNote::getPitchString(){
+
+  PitchEl *p;
+
+  // if no pitch element exists, create one
+  if( m_element->getElementsByTagName(XS("pitch"))->getLength() == 0 ){
+
+    //cout << "Creating pitch element for performance event using average frequency.\n";
+
+    string freqString = getText( (DOMElement*)m_element->getElementsByTagName(XS("freq"))->item(0) );
+    double freq = atoi( freqString.c_str() );
+
+    p = new PitchEl( m_element->getOwnerDocument(), freq );
+    m_element->appendChild( p->getElement() );
+  }
+  else{
+    p = new PitchEl( (DOMElement*)m_element->getElementsByTagName(XS("pitch"))->item(0) );
+  }
+  string rVal = p->getAsString();
+  delete p;
+  return rVal;
+}
+
+
+Pitch PNote::getPitch(){
+
+  PitchEl *p = new PitchEl( (DOMElement*)m_element->getElementsByTagName(XS("pitch"))->item(0) );
+  return p->getPitch();
+}
+
+
+
+
+
+/* SNote */
+
+SNote::SNote( DOMElement *element ){
+  m_element = element;
+}
+
+int SNote::getMeasure(){
+
+  DOMElement *measure = (DOMElement*)m_element->getParentNode();
+  return atoi( 
+	      XS( measure->getAttribute(XS("number")) )
+	      );
+}
+
+  /// Returns time within measure
+int SNote::getStartTime(){
+
+  DOMElement *onset = (DOMElement*)m_element->getElementsByTagName( XS(Onset) );
+  return atoi( getText(onset).c_str() );
+}
+
+/// Returns whether note has a chord element
+bool SNote::isChord(){
+  DOMNodeList *nl = m_element->getElementsByTagName(XS("chord"));
+  return ( nl->getLength() == 1 );
+}
+
+/**
+ * Used to sort a std::vector<SNote*> contents by start time
+ * Later sort concurrent notes by pitch.
+ */
+bool SNote::operator>( SNote *s2 ){
+
+  SNote *s1 = this;
+
+  if( s1->getMeasure() != s2->getMeasure() )
+    return s1->getMeasure() > s2->getMeasure();
+  else 
+    return s1->getStartTime() > s2->getStartTime();
+
+}
+
+std::string SNote::getPitchString( bool onlySharps ){
+  PitchEl pitch( (DOMElement*)m_element->getElementsByTagName(XS("pitch"))->item(0) );
+  string rVal = pitch.getAsString();
+
+  if( onlySharps ){
+    /*
+      Must change strings to be all sharps/naturals.
+      Later the tuning class can deal with this, but for now,
+      the transcribed pitches are either natural or sharp.
+    */
+    if( rVal == "Ab"  )      rVal = "G#";
+    else if( rVal == "Bb"  ) rVal = "A#";
+    else if( rVal == "Cb"  ) rVal = "B"; 
+    else if( rVal == "Db"  ) rVal = "C#";
+    else if( rVal == "Eb"  ) rVal = "D#";
+    else if( rVal == "Fb"  ) rVal = "E";
+    else if( rVal == "Gb"  ) rVal = "F#";
+  }
+
+  return rVal;
+}
+
+
+Pitch SNote::getPitch(){
+  PitchEl *p = new PitchEl( (DOMElement*)m_element->getElementsByTagName(XS("pitch"))->item(0) );
+  return p->getPitch();
+}
+
+
+
+
+
+PitchEl::PitchEl( DOMElement *element ){
+  m_element = element;
+}
+
+Accidental PitchEl::getAccidental( int alter ){
+  switch( alter ){
+  case 1: return Accidentals::Sharp;
+  case -1: return Accidentals::Flat;
+  case 0: return Accidentals::NoAccidental;
+  default:{
+    cerr << "PitchEl::getAccidental No accidental found for given number!\n";
+    return Accidentals::NoAccidental;
+  }
+  }
+}
+
+Pitch PitchEl::getPitch(){
+
+  // default accidental
+  Accidental acc = Accidentals::NoAccidental;
+  int oct;
+
+  DOMElement *noteEl = (DOMElement*)m_element->getElementsByTagName( XS(TagNote) )->item(0);
+  string note = getText(noteEl);
+
+  
+  DOMElement *octEl = (DOMElement*)m_element->getElementsByTagName( XS( TagOct ) )->item(0);
+  oct = atoi( getText(octEl).c_str() );
+  
+  DOMNodeList *nl = m_element->getElementsByTagName( XS( TagAcc ) );
+  if( nl->getLength() > 0 ){
+    DOMElement *accEl = (DOMElement*)nl->item(0);
+    acc = getAccidental( atoi( getText(accEl).c_str() ) );
+  }
+
+  return Pitch( note[0], oct, acc );
+
+}
+
+void SNote::align( PNote *note, bool correct ){
+
+  DOMNodeList *list = m_element->getElementsByTagName(XS("align"));
+  DOMElement *align;
+
+  if( list->getLength() == 0 ){
+    DOMDocument *doc = m_element->getOwnerDocument();
+    align = doc->createElement(XS("align"));
+    m_element->appendChild(align);
+  }
+  else{
+    align = (DOMElement*)list->item(0);
+  }
+
+
+  align->setAttribute( XS("note"), XS(note->getID().c_str()) );
+		       
+  if( correct )
+    setText( align, "correct" );
+  else
+    setText( align, "wrong" );
+}
+
+string SNote::getAlignedNoteID(){
+
+  DOMNodeList *nl = m_element->getElementsByTagName(XS("align"));
+
+  if( nl->getLength() == 0 )
+    return "";
+
+  DOMElement *align = (DOMElement*)nl->item(0);
+  return XS( align->getAttribute( XS(ALIGN_TAG) ) );
+
+
+}
+
+string PNote::getAlignedNoteID(){
+
+  DOMNodeList *nl = m_element->getElementsByTagName(XS("align"));
+
+  if( nl->getLength() == 0 )
+    return "";
+
+  DOMElement *align = (DOMElement*)nl->item(0);
+  return XS( align->getAttribute( XS(ALIGN_TAG) ) );
+
+
+
+}
+
+PitchEl::PitchEl( DOMDocument *doc, double frequency, double refC ){
+
+  //reference pitch is C4
+
+  m_element = doc->createElement(XS("pitch"));
+
+  //calculate pitch from frequency
+  //require tuning
+  //calculate cents from A, then determine pitch
+
+  // tuning system should be used to determine pitch
+  // and decide whether two pitches are equal eg. A# Bb
+  // for now just assume 12ET
+
+  //cout << "PitchEl::PitchEl" << endl;
+
+  char step;
+  int oct;
+  char acc=' ';
+
+  Algorithms::getPitch( frequency, &step, &oct, &acc, refC );
+
+  string s;
+  s=step;
+  DOMElement *stepEl = doc->createElement(XS("step"));
+  setText( stepEl, s );
+  m_element->appendChild( stepEl );
+
+  if( acc == '#' ){
+    DOMElement *acc = doc->createElement(XS("alter"));
+    m_element->appendChild( acc );
+    setText( acc, "1" );
+  }
+
+  DOMElement *octave = doc->createElement(XS("octave"));
+  setText( octave, itoa( oct ) );
+  m_element->appendChild( octave );
+
+  /*
+  cout << "\tFrequency " << frequency << " is: " << endl;
+  cout << "\t" << step;
+  if( altered ) cout << "#";
+  cout << refOct+octaveDiff << endl;
+  */
+}
+
+std::string PitchEl::getAsString(){
+
+  //cout << "PitchEl::getAsString\t";
+
+  DOMElement *step = (DOMElement*)m_element->getElementsByTagName(XS("step"))->item(0);
+  string pitchString = getText(step);
+  DOMNodeList *nodeList = m_element->getElementsByTagName(XS("alter"));
+  if( nodeList->getLength() == 1 ){
+    string accString = getText( (DOMElement*)nodeList->item(0) );
+    switch( atoi( accString.c_str() ) ){
+    case 1:
+      accString = "#";
+      break;
+    case -1:
+      accString = "b";
+      break;
+    }
+
+    pitchString.append(accString);
+  }
+  
+  //DOMElement *oct = (DOMElement*)pitch->getElementsByTagName(XS("octave"))->item(0);
+  
+  //cout << "'" << pitchString << "'\n";
+  return pitchString;
+}
+
+
+/*
+  DOMElement *dur = doc.createElement("dur");
+  ss << (end - start);
+  ss >> text;
+  DOMTextNode *durText = doc->createTextNode( XS(text) );
+  dur->appendChild( (DOMNode*)durText );
+
+  DOMElement *freq = doc.createElement("avgFreq");
+  ss << avgFreq;
+  ss >> text;
+  DOMTextNode *freqText = doc->createTextNode( XS(text) );
+  freq->appendChild( (DOMNode*)freqText );
+
+
+}
+*/
+
+
+PerformanceIterator::PerformanceIterator( ScorePart *score, PerfPart *perf ){
+
+  m_score = score;
+  m_perf = perf;
+
+  m_sit = m_score->getNotes()->begin();
+  m_pit = m_perf->getNotes()->begin();
+
+  checkStatus();
+
+}
+
+PerformanceIterator& PerformanceIterator::operator++(){
+
+
+  // Iterate the counter based on current status, then recalculate status
+
+  switch( m_status ){
+  case CORRECT:{
+    if( m_sit != m_score->getNotes()->end() )
+      ++m_sit;
+    if( m_pit != m_perf->getNotes()->end() )
+      ++m_pit;
+    break;
+  }
+  case WRONG:{
+    if( m_sit != m_score->getNotes()->end() )
+      ++m_sit;
+    if( m_pit != m_perf->getNotes()->end() )
+      ++m_pit;
+    break;
+  }
+  case EXTRA:{
+    if( m_pit != m_perf->getNotes()->end() )
+      ++m_pit;
+    break;
+  }
+  case MISSING:{
+    if( m_sit != m_score->getNotes()->end() )
+      ++m_sit;
+    break;
+  }
+  default:{
+    cout << "error\n";
+  }
+  }
+
+  checkStatus();
+
+  return *this;
+
+}
+
+PerformanceIterator& PerformanceIterator::operator--(){
+
+
+  // check previous snote and pnote
+
+ 
+  // decrement both 
+  // if both have unequal matches: status = error
+  // if only perf has match: status = missing, increment perf
+  // if only score has match: status = extra, inccrement score
+  // if they match: correct/wrong
+
+  --m_pit;
+  --m_sit;
+
+  SNote *snote = *m_sit;
+  PNote *pnote = *m_pit;
+
+  string snoteAlign =  snote->getAlignedNoteID();
+  string pnoteAlign =  pnote->getAlignedNoteID();
+
+
+  if( snoteAlign == "" ){
+
+    if( pnoteAlign == "" ){
+      cout << "Fatal Error ! extra and missing together during decrement\n"
+	   << "score id=" << snote->getID() << "\tperf id=" << pnote->getID() 
+	   << endl;
+      m_status = ERROR;
+      return *this;
+    }
+    else{
+      ++m_pit;
+      m_status = MISSING;
+      return *this;
+    }
+  }
+  else if( pnoteAlign == "" ){
+    ++m_sit;
+    m_status = EXTRA;
+      return *this;
+  }
+  else if( (pnote->getID() == snoteAlign) && (snote->getID() == pnoteAlign) ){
+
+    if( snote->getPitchString(true) == pnote->getPitchString() ){
+      m_status = CORRECT;
+      return *this;
+    }
+    else{
+      m_status = WRONG;
+      return *this;
+    }
+  }
+  else{
+    cout << "Something really wrong here PerformanceIterator::operator--\n"
+	   << snote->getID() << " matched to " << snote->getAlignedNoteID() << "\t"
+	   << pnote->getID() << " matched to " << pnote->getAlignedNoteID() 
+	   << endl;
+  }
+
+
+
+  return *this;
+
+}
+
+void PerformanceIterator::checkStatus(){
+
+  SNote *snote = *m_sit;
+
+  PNote *pnote = *m_pit;
+
+  // Matcher rules state that in a contiguous group of results,
+  // missing and extra notes cannot occur together (as they will
+  // be resolved into wrong notes)
+
+  /*  
+  cout << "\nChecking status...\n";
+  cout << "Score note: " << snote->getPitchString() << endl 
+       << "\tid '" << snote->getID() << "'" << endl
+       << "\taligned to '" << snote->getAlignedNoteID() << "'" << endl
+       << endl
+       << "Perf note: " << pnote->getPitchString() << endl 
+       << "\tid '" << pnote->getID() << "'" << endl
+       << "\taligned to '" << pnote->getAlignedNoteID() << "'" << endl;
+
+  cout << endl;
+  */
+
+  string snoteID, snoteAligned, sPitch;
+  string pnoteID, pnoteAligned, pPitch;
+  if( m_sit == m_score->getNotes()->end() ) {
+    snoteID = "end";
+    snoteAligned = "end";
+    pPitch = "end";
+  }
+  else {
+    snoteID = snote->getID();
+    snoteAligned = snote->getAlignedNoteID();
+    sPitch = snote->getPitchString();
+  }
+
+  if( m_pit == m_perf->getNotes()->end() ) {
+    pnoteID = "end";
+    pnoteAligned = "end";
+    pPitch = "end";
+  }
+  else {
+    pnoteID = pnote->getID();
+    pnoteAligned = pnote->getAlignedNoteID();
+    pPitch = pnote->getPitchString();
+  }
+
+
+
+  if( snoteAligned == pnoteID ){
+    
+    if( snoteAligned == "" ){
+      cout << "PerformanceIterator: FATAL ERROR! Missing and extra notes together!!\n"
+	   << "score id=" << snoteID << "\tperf id=" << pnoteID 
+	   << endl;
+      m_status = ERROR;
+    }
+    else if( sPitch == pPitch ){
+      m_status = CORRECT;
+    }
+    else{
+      m_status = WRONG;
+    }
+    
+  }
+  else if( ( pnoteAligned == "") &&
+	   ( snoteAligned != "") ){ // score is matched, so performance note must be extra
+    m_status = EXTRA;
+  }
+
+  else if( ( snoteAligned == "") && 
+	   ( pnoteAligned != "")    ){ // perf is matched, so score note must be extra
+    m_status = MISSING;
+  }
+  else{
+    cout << "PerformanceIterator: FATAL ERROR! element mismatch!!\n"
+	   << snoteID << " matched to " << snoteAligned << "\t"
+	   << pnoteID << " matched to " << pnoteAligned 
+	   << endl;
+
+    m_status = ERROR;
+  }
+
+  //cout << "Status " << getStatusString() << endl;
+
+}
+
+
+SNote* PerformanceIterator::getScoreNote(){
+  return *m_sit;
+}
+
+PNote* PerformanceIterator::getPerfNote(){
+  return *m_pit;
+}
+
+
+
+PerformanceIterator::Status PerformanceIterator::getStatus(){
+  return m_status;
+}
+
+string PerformanceIterator::getStatusString(){
+
+  switch( m_status ){
+  case CORRECT:{
+    return "Correct";
+  }
+  case WRONG:{
+    return "Wrong";
+  }
+  case EXTRA:{
+    return "Extra";
+  }
+  case MISSING:{
+    return "Missing";
+  }
+  default:{
+    return "Error";
+  }
+  }
+
+
+}
+
+
+PerformanceIterator::PerformanceIterator( PerformanceIterator &original ){
+
+
+  m_status = original.getStatus();
+
+  m_score = original.getScorePart();
+  m_perf = original.getPerfPart();
+
+  m_sit = original.getScoreIterator();
+  m_pit = original.getPerfIterator();
+
+}
+
+
+PerformanceIterator& PerformanceIterator::operator=( PerformanceIterator &original ){
+
+
+  m_status = original.getStatus();
+
+  m_score = original.getScorePart();
+  m_perf = original.getPerfPart();
+
+  m_sit = original.getScoreIterator();
+  m_pit = original.getPerfIterator();
+  return *this;
+
+}
+
+
+bool PerformanceIterator::hasNext(){
+
+  // Returns false if iterator isa at the end of either the score or the 
+  // performance. (At this point, all successive notes will be extra or missing)
+  PerfIterator pit = m_pit;
+  ScoreIterator sit = m_sit;
+
+
+  return !( ( ++pit == m_perf->getNotes()->end() ) ||
+	    ( ++sit == m_score->getNotes()->end() )   ) ;
+}
+
+void PerformanceIterator::printStatus(){
+
+  cout << "S: " << (*m_sit)->getPitchString() << " " << (*m_sit)->getID() 
+       << "\tP: " << (*m_pit)->getPitchString() << " " << (*m_pit)->getID() 
+       << "\tstatus: " << m_status 
+       << endl;
+
+
+
+}
+
+void PerformanceIterator::removePNote(){
+
+  m_pit = m_perf->removeNote( m_pit );
+  checkStatus();
+}
+
+
+

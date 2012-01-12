@@ -1,0 +1,3 @@
+
+set output "z.png"
+plot "zzz.txt"

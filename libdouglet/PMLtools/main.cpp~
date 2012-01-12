@@ -1,0 +1,41 @@
+
+#include "pmldocument.h"
+
+
+void usage(){
+  cout << "Usage:\n"
+       << "\ttempo <pmlfile> noteId\n";
+}
+
+
+int main( int argc, char **argv ){
+  
+  // Check command line and extract arguments.
+  if ( argc != 3 ) {
+    usage();
+    return 1;
+  }
+
+  const char *inFile = argv[1];//argv[1];
+    
+  PMLDocument doc;
+  doc.openFile( inFile,false );
+ 
+  double tempo = getTempo( doc, argv[2] );
+ 
+  cout << "Tempo is " << tempo << endl;
+
+}
+
+
+double getTempo( PMLDocument &doc, string noteID ){
+
+
+
+
+
+
+
+
+
+}

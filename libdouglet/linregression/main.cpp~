@@ -1,0 +1,49 @@
+
+
+#include <iostream>
+#include <fstream>
+#include <freqfile.h>
+#include "linreg.h"
+
+using namespace std;
+
+/*
+  This program will simply test the linear regression
+  class. Given an ascii file, it will extract the 
+  value pairs on each line, add them to the BFLine
+  class and report the best fit line through the points.
+  Finally, the points and line will be plotted.
+ */
+
+void usage(){
+  cout << "testbf <file>\n"
+       << "The file should contain a list of point pairs\n";
+  exit(1);
+}
+
+int main( int argc, char **argv ){
+  
+  
+  if( argc != 2 )
+    usage();
+
+
+  ifstream in( argv[1] );
+
+
+  BFLine line;
+  Point p;
+  while( in.eof() ){
+
+
+    in >> p.x;
+    in >> p.y;
+
+    line.appendPoint(p);
+
+
+  }
+
+
+
+}

@@ -1,0 +1,41 @@
+
+#include <list>
+
+typedef enum{ PEAK, TROUGH, UP, DOWN, LEVEL_UP, 
+		LEVEL_DOWN, UP_LEVEL, DOWN_LEVEL } Shape;
+
+
+typedef struct{
+  double x;
+  double y;
+}Point;
+
+
+typedef std::list<Point> PointList;
+typedef std::list<Point>::iterator PointsListIt;
+
+class BFLine{
+  
+public:
+  BFLine();
+  BFLine( PointsList &points );
+  
+  void appendPoint( Point p );
+  void prependPoint( Point p );
+  
+  void removeLastPoint();
+  void removeFirstPoint();
+  
+  double getBFGradient();
+  double getBFIntercept();
+  
+protected:
+  
+  int m_size;
+  double m_sumX;
+  double m_sumY;
+  double m_sumX2;
+  double m_sumY2;
+  
+}
+

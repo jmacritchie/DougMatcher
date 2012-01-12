@@ -1,0 +1,11 @@
+
+
+
+Some notes on PML library and it's interaction with MusicXML.
+
+The PML library is very incomplete, and the features that have been implemented are only those which have been required thus far in the development of software for projects currently using PML. Any contributions to the code are more than welcome.
+
+The current library is based upon MusicXML. The document model remains within the DOM document, and information is accessed using classes which wrap MusicXML/PML elements (so deleting a class object does NOT delete the element in the document). Thus, the library attempts not to impose any application specific information structure other than what is necessary for convenient analysis eg: the linear sorting of notes in a measure. 
+
+
+

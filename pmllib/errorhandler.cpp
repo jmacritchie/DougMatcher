@@ -1,0 +1,30 @@
+
+#include "errorhandler.h"
+
+#include <iostream>
+
+#include <xercesc/util/XMLString.hpp>
+#include <xercesc/dom/DOMLocator.hpp>
+
+
+bool ErrorHandler::handleError( const DOMError &domError ){
+
+  DOMLocator *location = domError.getLocation();
+
+  std::cout << XMLString::transcode( location->getURI() )
+	    << std::endl
+	    << "Line " << location->getLineNumber() 
+	    << "\t" 
+	    << "Column" << location->getColumnNumber()
+	    << std::endl
+	    << XMLString::transcode( domError.getMessage() )
+	    << std::endl;
+
+  std::cout << std::endl;
+
+  return true;
+}
+
+
+ErrorHandler::ErrorHandler(){}
+ErrorHandler::~ErrorHandler(){}

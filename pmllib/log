@@ -1,0 +1,5 @@
+make  all-am
+make[1]: Entering directory `/home/dougie/Work/codebank'
+/bin/bash ./libtool --tag=CXX   --mode=compile g++ -DHAVE_CONFIG_H -I. -I/usr/include/qt3/ -I/usr/lib/qt3//include    -g -O2 -I/usr/lib/qt3//include -Wno-deprecated -MT algorithms.lo -MD -MP -MF .deps/algorithms.Tpo -c -o algorithms.lo algorithms.cpp
+ g++ -DHAVE_CONFIG_H -I. -I/usr/include/qt3/ -I/usr/lib/qt3//include -g -O2 -I/usr/lib/qt3//include -Wno-deprecated -MT algorithms.lo -MD -MP -MF .deps/algorithms.Tpo -c algorithms.cpp  -fPIC -DPIC -o .libs/algorithms.o
+ g++ -DHAVE_CONFIG_H -I. -I/usr/include/qt3/ -I/usr/lib/qt3//include -g -O2 -I/usr/lib/qt3//include -Wno-deprecated -MT algorithms.lo -MD -MP -MF .deps/algorithms.Tpo -c algorithms.cpp -o algorithms.o >/dev/null 2>&1

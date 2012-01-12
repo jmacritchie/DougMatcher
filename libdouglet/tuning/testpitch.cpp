@@ -1,0 +1,111 @@
+
+#include <iostream>
+#include <vector>
+#include <string>
+
+#include "tuning.h"
+
+using namespace std;
+
+
+
+Tuning *t;
+void testPitch2Freq(Pitch p);
+void testPitch2Midi(Pitch p);
+void testInterval();
+void testFreq2Midi( double freq );
+void testFreq2Pitch( double freq );
+void testMidi2Pitch( MidiNo m );
+void testMidi2Freq( MidiNo m );
+
+
+Pitch readPitch(){
+  cout << "Enter pitch: note <enter> octave <enter> accidental <enter>\n";
+  char note;
+  Accidental acc;
+  int oct;
+  cin >> note;
+  cin >> oct;
+  cin >> acc;
+  Pitch p( note, oct, acc );
+  cout << p << endl;
+  return p;
+}
+
+
+
+int main( int argc, char** argv ){
+
+  if( argc != 2 ){
+    cout << "Usage: testtuning ( p | i | m | f )\n";
+    return -1;
+  }
+
+  vector<Tuning*>* tunings = Tuning::getTunings("tunings");
+  t = tunings->at(0);
+
+  if( !strcmp( argv[1], "p" ) ){
+    Pitch p = readPitch();
+    testPitch2Midi(p);
+    testPitch2Freq(p);
+  }
+  else if( !strcmp( argv[1], "i" ) ){
+    testInterval();
+  }
+  else if( !strcmp( argv[1], "m") ){
+    cout << "Enter midi number\n";
+    int m;
+    cin >> m;
+    testMidi2Pitch( (MidiNo)m );
+    testMidi2Freq( (MidiNo)m );
+  }
+  else if( !strcmp( argv[1], "f") ){
+    cout << "Enter frequency Hz\n";
+    int f;
+    cin >> f;
+    testFreq2Midi( f );
+    testFreq2Pitch( f );
+  }
+  else
+    cout << "Usage: testtuning ( p | i | m | f )\n";
+} 
+
+
+void testPitch2Midi(Pitch p){
+  cout << p << "\t = Midi number " << t->getMidiNumber( p ) << endl;
+}
+
+void testPitch2Freq(Pitch p){
+  cout << p << " is " << t->getFrequency( p ) << endl;
+}
+
+void testInterval(){
+  Pitch p = readPitch();
+  Pitch p2 = readPitch();
+  int interval = t->getInterval( p, p2 );
+  cout << "Interval between " << p << " & " << p2 << " is " << interval << " steps\n";
+}
+
+void testFreq2Midi( double freq ){
+  if( freq > 0 ){
+    double diff;
+    int midi = t->getMidiNumber( freq, &diff );
+    cout << midi << " diff " << diff << endl;
+  }
+}
+
+void testFreq2Pitch( double freq ){
+  if( freq > 0 ){
+    Pitch p = t->getPitch( freq, true );
+    cout << p << endl;
+  }
+}
+
+void testMidi2Pitch( MidiNo m ){
+  Pitch p = t->getPitch( m );
+  cout << "Pitch is " << p << endl;
+}
+
+void testMidi2Freq( MidiNo m ){
+  cout << "Freq is " << t->getFrequency( m ) << endl;
+}

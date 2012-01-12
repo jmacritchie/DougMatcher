@@ -1,0 +1,141 @@
+
+/*****************************************************
+ *                                                   *
+ * 2DO: removing PNote from a PerfPart does not      *
+ *      guarantee removing it from the DOMdocument   *
+ *      Should also check addNote                    *
+ *                                                   *
+ *                                                   *
+ *****************************************************/
+
+#include "scorepart.h"
+#include "pmldocument.h"
+
+#include "xmlsc.h"
+#include "pmlbase.h"
+#include "snote.h"
+
+
+#include <string>
+#include <list>
+#include <sstream>
+
+#include <xercesc/dom/DOMDocument.hpp>
+#include <xercesc/dom/DOMElement.hpp>
+#include <xercesc/dom/DOMNodeList.hpp>
+#include <xercesc/util/XMLString.hpp>
+
+using namespace std;
+
+
+#define XS XMLString::transcode
+
+
+#define ALIGN_TAG "note"
+
+/**
+*Constructor method
+*ScorePart represents the list of notes within the score
+**/
+ScorePart::ScorePart( PMLDocument *doc, DOMElement *element ){
+    m_element = element; 
+    m_doc = doc;
+  // Find <score-part> element in part-list and store. This contains
+  // Part metadata
+    m_definition = m_element->getOwnerDocument()->getElementById( XS(getID().c_str()) );
+
+  // fill vector of notes
+    DOMNodeList *measures = m_element->getElementsByTagName(XS("measure"));
+
+    for( unsigned int m=0; m<measures->getLength(); m++ ){
+
+        DOMElement *measure = (DOMElement*)measures->item(m);
+
+    // Iterate through MEASURE contents
+        for( DOMNode *measureIt = measure->getFirstChild();
+             measureIt != NULL; 
+             measureIt = measureIt->getNextSibling() ){
+      
+                 if( measureIt->getNodeType() == DOMNode::ELEMENT_NODE ){
+                     DOMElement *e = (DOMElement*)measureIt;
+    //check whether the element is a "note"
+                     string tag = XS( e->getTagName() );
+                     if( tag == "note" ){
+    //check whether this note is a "rest" - if so do nothing
+                         if( e->getElementsByTagName( XS("rest") )->getLength() > 0 ){
+	    //cout << "\trest\n"; //rest not in notes vector;
+                         }
+    //if it isn't a rest then add it to the list of SNotes for this document
+                         else{
+	    //cout << "Note\n";
+                             m_notes.push_back( new SNote(m_doc, e) );
+                         }
+                     }
+                 }
+      
+      
+             }
+
+
+    }
+    m_notes.sort( SNote::sortByTime );
+}
+
+string ScorePart::getName(){
+    DOMElement *nameEl = getSingleElement( m_definition, "part-name" );
+    return getText( nameEl );
+}
+
+int ScorePart::getNoNotes(){ return m_notes.size(); }
+
+
+
+/**
+ * Returns element containing the performance information
+ * for this part. Or NULL if no element exists.
+ */
+PerfPart *ScorePart::getPerfPart(){
+
+    DOMDocument *doc = m_element->getOwnerDocument();
+    DOMElement *root = doc->getDocumentElement();
+    DOMElement *perf = (DOMElement*)root->getElementsByTagName(XS("performance"))->item(0);
+
+    DOMNodeList *perfParts = perf->getElementsByTagName(XS( PerfPart::Tag) );
+
+    for( unsigned int i=0; i<perfParts->getLength(); i++ ){
+        DOMElement *e = (DOMElement*)perfParts->item(i);
+        if( getID() == XS( e->getAttribute(XS("part")) ) ){
+            return new PerfPart(m_doc, e);
+        }
+    }
+    cout << "No performance part found\n";
+    return new PerfPart(m_doc, this);
+}
+
+
+SNote *ScorePart::getNote( int index ){ 
+    ScoreIterator it = m_notes.begin();
+    for( int i=0; i<index; i++ )
+        ++it;
+    return *it; ; 
+ 
+}
+
+SNote *ScorePart::getNote( string id ){ 
+    DOMDocument *doc = m_element->getOwnerDocument();
+    DOMElement *e = doc->getElementById( XS(id.c_str()) );
+    if( e ) return new SNote( m_doc, e );
+    else return NULL;
+}
+
+
+list<SNote*> *ScorePart::getNotes(){ return &m_notes; }
+
+/// Warning! Only looks for 1 divisions element in the first measure
+int ScorePart::getDivisions(){
+
+    DOMElement *m = getSingleElement(m_element, "measure");
+    DOMElement *div = getSingleElement(m, "divisions");
+    return atoi( getText( div ).c_str() );
+}
+

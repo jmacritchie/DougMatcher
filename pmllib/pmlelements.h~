@@ -1,0 +1,305 @@
+#ifndef PML_ELEMENT_H
+#define PML_ELEMENT_H
+
+#include "pitch.h"
+#include "tuning.h"
+#include "pmldocument.h"
+
+#include <iostream>
+#include <list>
+#include <xercesc/dom/DOMDocument.hpp>
+#include <xercesc/dom/DOMElement.hpp>
+#include <xercesc/util/XMLString.hpp>
+
+
+
+XERCES_CPP_NAMESPACE_USE
+
+void setSubElementText( DOMElement *element, const XMLCh *subElementName, std::string text );
+
+class PNote;
+class SNote;
+class PerfPart;
+class Tuning;
+
+class PMLBase{
+ protected:
+  DOMElement* m_element;
+  PMLDocument* m_doc;
+ public:
+  DOMElement* getElement();
+  std::string getID();
+  void removeElement();
+};
+
+typedef std::list<PNote*>::iterator PerfIterator;
+typedef std::list<SNote*>::iterator ScoreIterator;
+
+
+/**
+ * ScorePart - represents a part within the musical score
+ */
+class ScorePart : public PMLBase  {
+
+ public:
+  ScorePart( PMLDocument * doc, DOMElement *element );
+
+  PerfPart *getPerfPart();
+
+  std::string getName();
+
+  int getNoNotes();
+  SNote *getNote( int index );
+  SNote *getNote( std::string id );
+  std::list<SNote*> *getNotes();
+  std::string getAlignedNoteID();
+  int getDivisions();
+
+ protected:
+
+  DOMElement *m_definition; // points to score-part element which contains part metadata
+  std::list<SNote*> m_notes;
+};
+
+/**
+ * Performance part. Contains note list for performance.
+ */
+class PerfPart : public PMLBase {
+
+  ScorePart *m_scorePart;
+  std::list<PNote*> m_notes;
+
+ public:
+
+  /// Creates part if none exists, or 
+  PerfPart( PMLDocument *doc, DOMElement *element );
+  PerfPart( PMLDocument *doc, ScorePart *spart );
+
+  //virtual ~PerfPart();
+
+  static const char *Tag;
+
+  ScorePart *getScorePart();
+
+  void setOnset( double onset );
+  void setFreq( double freq );
+  void setOffset( double offset );
+  Pitch getPitch();
+
+  PNote* createNote( double start, double end, double avgFreq );
+  void addNote( PNote *note );
+
+  PerfIterator removeNote( PerfIterator &it );
+  PerfIterator removeNote( int index );
+
+  int noEvents();
+
+  PNote* getNote( int i );
+
+  std::list<PNote*>* getNotes(){ return &m_notes; }
+  void unAlign(); // Remove all align from notes
+
+};
+
+class Note : public PMLBase{
+ public:
+  virtual Pitch getPitch(){}; // {} avoids typeinfo error
+  virtual std::string getPitchString(){};
+};
+
+class PNote : public Note{
+
+  /// used to create id attributes
+  static int noteNo;
+  void init( PMLDocument *doc, double onset, double offset );
+
+ public:
+
+  PNote( PMLDocument *doc, double onset, double offset );
+  PNote( PMLDocument *doc, double onset, double offset, MidiNo midi );
+  PNote( PMLDocument *doc, double onset, double offset, double freq );
+  PNote( PMLDocument *doc, DOMElement* );
+
+  static const char* Tag;
+  static const char* TagMidi;
+  static const char* TagOnset;
+  static const char* TagOffset;
+  static const char* TagFreq;
+
+  void setOnset( double onset );
+  void setOffset( double offset );
+  void setFreq( double freq );
+  void setMidi( MidiNo midi );
+
+  double getOnset();
+  double getOffset();
+  double getFreq();
+  MidiNo getMidi();
+
+  /// Returns true if average frequency is specified in element
+  bool hasFreq();
+  /// Returns true if midi number is specified in element
+  bool hasMidi();
+
+  std::string getPitchString();
+  Pitch getPitch();
+
+  void align( SNote *note, bool correct=true );
+  void unalign();
+  std::string getAlignedNoteID();
+
+  /// Sets min id to be used for new pnotes
+  void setMinID( int i );
+
+};
+
+/* Need to add duration nethods */
+class SNote : public Note{
+
+ public:
+
+  SNote( PMLDocument *doc, DOMElement* element );
+
+  int getMeasure();
+  int getStartTime();
+  ScorePart *getPart();
+
+
+  Pitch getPitch();
+  std::string getPitchString( bool onlySharps=false );
+
+  void align( PNote *note, bool correct );
+  std::string getAlignedNoteID();
+
+  int getVoice();
+  int getStaff();
+
+  bool isChord();
+  bool isTied();
+  std::string getTiedType();
+  /// Used to sort a std::vector<SNote*> contents by start time
+  static bool sortByTime( SNote* s1, SNote* s2 );
+
+  static const char* Onset;
+
+};
+
+class PitchEl : public PMLBase{
+
+ public:
+  /*PitchEl( DOMDocument *doc, char name, int oct, int acc ); */
+  PitchEl( DOMDocument *doc, Pitch p );   // create pitch from frequency (12ET) 
+  PitchEl( DOMElement *pitch );
+
+  std::string getAsString();
+
+  Pitch getPitch();
+
+  const static char* TagNote;
+  const static char* TagAcc;
+  const static char* TagOct;
+
+ protected:
+
+  Accidental getAccidental( int alter );
+
+};
+
+/*
+
+class PerfNote{
+
+ public:
+  PerfNote( int part, double start, double end );
+  PerfNote( int part, double start, double end, double freq );
+  PerfNote( DOMElement *element );
+
+  double getStart();
+  double getEnd();
+  double getAvgFreq();
+
+ protected:
+  DOMElement *m_element;
+  int m_part;
+  double m_start;
+  double m_endl;
+  double m_freq;
+
+}
+
+
+*/
+
+
+class PerformanceIterator{
+
+ public:
+  enum Status { CORRECT, WRONG, EXTRA, MISSING, ERROR };
+
+  PerformanceIterator( ScorePart *score, PerfPart *perf );
+  PerformanceIterator( PerformanceIterator &original );
+
+  PerformanceIterator& operator=( PerformanceIterator &original );
+  PerformanceIterator& operator++();
+  PerformanceIterator& operator--();
+
+  bool hasNext();
+
+  SNote* getScoreNote();
+  PNote* getPerfNote();
+
+  ScoreIterator getScoreIterator(){ return m_sit; }
+  PerfIterator getPerfIterator(){ return m_pit; }
+
+  ScorePart *getScorePart(){ return m_score; } 
+  PerfPart *getPerfPart(){ return m_perf; }
+
+
+  void removePNote();
+
+
+  std::string getStatusString();
+  Status getStatus();
+
+  void printStatus();
+
+
+ protected:
+
+  void checkStatus();
+
+  Status m_status;
+
+  ScorePart *m_score;
+  PerfPart *m_perf;
+
+  ScoreIterator m_sit;
+  PerfIterator m_pit;
+
+};
+
+
+class TuningEl : public PMLBase{
+
+ public:
+  TuningEl( DOMElement *element );
+
+  static const char* TagIntervalList;
+  static const char* TagInterval;
+  static const char* TagCents;
+  static const char* TagRatio;
+  static const char* TagSpelling;
+  static const char* TagMidiNo;
+  static const char* TagMidiPitch;
+  static const char* TagRefPitch;
+  static const char* TagRefFreq;
+  static const char* TagRootPitch;
+
+
+ protected:
+
+  Tuning *m_tuning;
+
+};
+
+#endif

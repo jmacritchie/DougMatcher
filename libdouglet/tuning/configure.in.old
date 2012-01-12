@@ -1,0 +1,20 @@
+AC_PREREQ(2.59)
+
+AC_INIT(libdoug], [2.0], [libdoug])
+AC_CONFIG_HEADERS([config.h:config-h.in])
+
+AM_INIT_AUTOMAKE([1.9 foreign])
+
+AC_PROG_CC
+AC_PROG_CXX
+AC_PROG_LIBTOOL
+
+AC_CHECK_HEADERS([math.h])
+AC_CHECK_HEADERS([qstring.h string.h], [break])
+
+#AC_CHECK_FUNCS([strrchr])
+#AC_REPLACE_FUNCS([basename])
+
+AC_CONFIG_FILES([Makefile])
+AC_OUTPUT
+

@@ -1,0 +1,59 @@
+#ifndef PERFPART_H
+#define PERFPART_H
+
+#include "pitch.h"
+#include "tuning.h"
+#include "pmldocument.h"
+#include "pmlbase.h"
+
+#include <iostream>
+#include <list>
+#include <xercesc/dom/DOMDocument.hpp>
+#include <xercesc/dom/DOMElement.hpp>
+#include <xercesc/util/XMLString.hpp>
+
+class ScorePart;
+class PNote;
+//class PerfIterator;
+typedef std::list<PNote*>::iterator PerfIterator;
+
+XERCES_CPP_NAMESPACE_USE
+
+
+/**
+ * Performance part. Contains note list for performance.
+ */
+class PerfPart : public PMLBase {
+
+    ScorePart *m_scorePart;
+    std::list<PNote*> m_notes;
+
+    public:
+
+  /// Creates part if none exists, or 
+        PerfPart( PMLDocument *doc, DOMElement *element );
+        PerfPart( PMLDocument *doc, ScorePart *spart );
+
+  //virtual ~PerfPart();
+
+        static const char *Tag;
+
+        ScorePart *getScorePart();
+
+        PNote* createNote( double start, double end, double avgFreq );
+        void addNote( PNote *note );
+
+        PerfIterator removeNote( PerfIterator &it );
+        PerfIterator removeNote( int index );
+
+        int noEvents();
+
+        PNote* getNote( int i );
+
+        std::list<PNote*>* getNotes(){ return &m_notes; }
+        void unAlign(); // Remove all align from notes
+
+};
+
+#endif
+

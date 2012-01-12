@@ -1,0 +1,15 @@
+;; Object PMLtools/
+;; SEMANTICDB Tags save file
+(semanticdb-project-database-file "PMLtools/"
+  :tables (list 
+   (semanticdb-table "main.cpp"
+    :major-mode 'c++-mode
+    :tags '(("pmldocument.h" include nil nil [2 26]) ("usage" function (:type "void") nil [29 105]) ("main" function (:arguments (("argc" variable (:type "int") (reparse-symbol arg-sub-list) [118 127]) ("argv" variable (:pointer 2 :type "char") (reparse-symbol arg-sub-list) [128 141])) :type "int") nil [108 433]) ("getTempo" function (:arguments (("doc" variable (:type ("PMLDocument" type (:type "class") nil nil)) (reparse-symbol arg-sub-list) [453 470]) ("noteID" variable (:type ("string" type (:type "class") nil nil)) (reparse-symbol arg-sub-list) [471 486])) :type "double") nil [436 1778]))
+    :file "main.cpp"
+    :pointmax 1779
+    )
+   )
+  :file "semantic.cache"
+  :semantic-tag-version "2.0pre3"
+  :semanticdb-version "2.0pre3"
+  )

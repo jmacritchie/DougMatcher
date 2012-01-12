@@ -1,0 +1,34 @@
+## Makefile.am -- Process this file with automake to produce Makefile.in
+
+lib_LTLIBRARIES      	= libdouglet.la
+
+
+
+pml_libraries		= -lm -lxerces-c
+
+
+# tuning library stuff
+
+tuning_libraries	= -lm -lqt-mt
+
+
+
+#my general stuff
+libdouglet_la_SOURCES 	= algorithms.cpp \
+			pitchtracker.cpp \
+			soundfile.cpp \
+			freqfile.cpp 
+
+libdouglet_la_LIBADD    = -lm -lqt-mt -lfftw3 -lsndfile $(pml_libraries) $(tuning_libraries)
+
+INCLUDES		= -I/usr/include/qt3
+
+CXXFLAGS		+= $(INCLUDES) -Wno-deprecated
+CFLAGS  		+= $(INCLUDES) -Wno-deprecated
+
+##for 64 bit 
+##CXXFLAGS		+= $(INCLUDES) -Wno-deprecated -m64
+##CFLAGS  		+= $(INCLUDES) -Wno-deprecated -m64
+
+
+install-data-local:

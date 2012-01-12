@@ -1,0 +1,25 @@
+#ifndef GUESTURE_H
+#define GUESTURE_H
+
+#include "pmldocument.h"
+#include "pnote.h"
+#include <string>
+
+#include <xercesc/dom/DOMDocument.hpp>
+#include <xercesc/dom/DOMElement.hpp>
+#include <xercesc/util/XMLString.hpp>
+
+
+class Guesture {
+
+    public:
+
+
+        static const char* PTrajTag;
+
+        void setPitchTraj(PNote *pnote, string trajectory_list);
+
+
+};
+
+#endif

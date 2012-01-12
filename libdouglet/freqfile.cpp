@@ -1,0 +1,133 @@
+
+
+#include "freqfile.h"
+#include "soundfile.h"
+#include "pitchtracker.h"
+#include "algorithms.h"
+
+#include <iostream>
+#include <fstream>
+#include <memory.h>
+#include <stdlib.h>
+
+using namespace std;
+using namespace Algorithms;
+
+#define LOG  cout
+
+
+/*
+  Will analyse soundfile, extracting frequencies,
+  storing in a .freq file beside the soundfile
+*/
+
+FreqFile::FreqFile( SoundFile *sf, PitchTracker *pt, int stepSize ){
+
+  stepSize_ = stepSize;
+  sampleRate_ = sf->sampleRate();
+  frameSize_ = pt->getFrameSize();
+  string fname = sf->getFilename();
+  int noFrames = (int)( (sf->length() - (frameSize_-stepSize_))/stepSize_ );
+
+  int pos = fname.find( "." );
+  LOG << fname << " " << pos << endl;
+  fname = fname.erase( pos+1, fname.size() - (pos+1) );
+  fname.append("freq");
+
+  LOG << "Output filename " << fname << "\n";
+
+  ofstream fout(fname.c_str());
+
+  fout << "SampleRate " << sampleRate_ << endl
+       << "framesize " << frameSize_ << endl
+       << "stepsize " << stepSize_ << endl
+       << "noFrames " << noFrames << endl;
+  LOG  << "SampleRate " << sampleRate_ << endl
+       << "framesize " << frameSize_ << endl
+       << "stepsize " << stepSize_ << endl
+       << "noFrames " << noFrames << endl;
+
+  for( int frameNo=0; frameNo<noFrames; frameNo++ ){
+
+    double *frame = &(sf->data()[frameNo*stepSize_]);
+    double *ptFrame = pt->getInBuffer();
+    
+    memcpy( ptFrame, frame, (pt->getFrameSize()+pt->getStepSize())*sizeof(double) );
+    
+    double freq = pt->getPitch();
+    fout << frameNo << " " << freq << endl;
+    freqs_.push_back( FreqEst(frameNo,freq) );
+  }
+  
+  fout.close(); 
+
+  double buffer[freqs_.size()];
+  int i=0;
+  for( FreqIt it = freqs_.begin(); it != freqs_.end(); it++, i++ ){
+    buffer[i] = it->second;
+  }
+
+  //plotDoubleData( "Frequency plot", buffer, freqs_.size() );
+
+}
+
+void fileError(){
+    cerr << "Error in FREQ file!\n";
+    exit( -1 );
+}
+
+FreqFile::FreqFile( const char *freqFile ){
+  ifstream inFile( freqFile, ios::in );
+  string line;
+  int noFrames;
+
+  inFile >> line;
+  if( line != "SampleRate" ){ cout << "SR1\n";fileError();}
+  inFile >> sampleRate_;// = atoi( line.c_str() );
+  
+  inFile >> line;
+  if( line != "framesize" ){ cout << "SR2\n";fileError();}
+  inFile >> frameSize_;
+
+  inFile >> line;
+  if( line != "stepsize" ){ cout << "SR3\n";fileError();}
+  inFile >> stepSize_;
+
+  inFile >> line;
+  if( line != "noFrames" ){ cout << "SR4\n";fileError();}
+  inFile >> noFrames; 
+
+  LOG << "SampleRate " << sampleRate_ << endl
+       << "framesize " << frameSize_ << endl
+       << "stepsize " << stepSize_ << endl
+       << "noFrames " << noFrames << endl;
+
+  LOG << "No frames = " << noFrames << endl;
+
+
+  char buffer [100];
+
+  while( !inFile.eof() ){
+
+    inFile.getline( buffer, 99 );
+    line = buffer;
+
+    int frameNo; 
+    double freq; 
+
+    inFile >> frameNo;
+    inFile >> freq;
+
+    freqs_.push_back( FreqEst( frameNo, freq ) );
+
+
+  }
+
+
+}
+
+
+FreqEst FreqFile::operator[]( const int index ){
+  return freqs_[index];
+
+}

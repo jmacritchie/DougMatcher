@@ -1,0 +1,345 @@
+
+/*****************************************************
+ *                                                   *
+ * 2DO: removing PNote from a PerfPart does not      *
+ *      guarantee removing it from the DOMdocument   *
+ *      Should also check addNote                    *
+ *                                                   *
+ *                                                   *
+ *****************************************************/
+
+#include "performanceiterator.h"
+#include "pmldocument.h"
+#include "algorithms.h"
+#include "pitch.h"
+#include "xmlsc.h"
+#include "pmlbase.h"
+
+
+#include <string>
+#include <list>
+#include <sstream>
+
+#include <xercesc/dom/DOMDocument.hpp>
+#include <xercesc/dom/DOMElement.hpp>
+#include <xercesc/dom/DOMNodeList.hpp>
+#include <xercesc/util/XMLString.hpp>
+
+using namespace std;
+using namespace Algorithms;
+
+#define XS XMLString::transcode
+
+
+#define ALIGN_TAG "note"
+
+
+
+
+
+
+
+
+
+PerformanceIterator::PerformanceIterator( ScorePart *score, PerfPart *perf ){
+
+    m_score = score;
+    m_perf = perf;
+
+    m_sit = m_score->getNotes()->begin();
+    m_pit = m_perf->getNotes()->begin();
+
+    checkStatus();
+
+}
+
+PerformanceIterator& PerformanceIterator::operator++(){
+
+
+  // Iterate the counter based on current status, then recalculate status
+
+    switch( m_status ){
+        case CORRECT:{
+            if( m_sit != m_score->getNotes()->end() )
+                ++m_sit;
+            if( m_pit != m_perf->getNotes()->end() )
+                ++m_pit;
+            break;
+        }
+        case WRONG:{
+            if( m_sit != m_score->getNotes()->end() )
+                ++m_sit;
+            if( m_pit != m_perf->getNotes()->end() )
+                ++m_pit;
+            break;
+        }
+        case EXTRA:{
+            if( m_pit != m_perf->getNotes()->end() )
+                ++m_pit;
+            break;
+        }
+        case MISSING:{
+            if( m_sit != m_score->getNotes()->end() )
+                ++m_sit;
+            break;
+        }
+        default:{
+            cout << "error\n";
+        }
+    }
+
+    checkStatus();
+
+    return *this;
+
+}
+
+PerformanceIterator& PerformanceIterator::operator--(){
+
+
+  // check previous snote and pnote
+
+ 
+  // decrement both 
+  // if both have unequal matches: status = error
+  // if only perf has match: status = missing, increment perf
+  // if only score has match: status = extra, inccrement score
+  // if they match: correct/wrong
+
+    --m_pit;
+    --m_sit;
+
+    SNote *snote = *m_sit;
+    PNote *pnote = *m_pit;
+
+    string snoteAlign =  snote->getAlignedNoteID();
+    string pnoteAlign =  pnote->getAlignedNoteID();
+
+
+    if( snoteAlign == "" ){
+
+        if( pnoteAlign == "" ){
+            cout << "Fatal Error ! extra and missing together during decrement\n"
+                    << "score id=" << snote->getID() << "\tperf id=" << pnote->getID() 
+                    << endl;
+            m_status = ERROR;
+            return *this;
+        }
+        else{
+            ++m_pit;
+            m_status = MISSING;
+            return *this;
+        }
+    }
+    else if( pnoteAlign == "" ){
+        ++m_sit;
+        m_status = EXTRA;
+        return *this;
+    }
+    else if( (pnote->getID() == snoteAlign) && (snote->getID() == pnoteAlign) ){
+
+        if( snote->getPitchString(true) == pnote->getPitchString() ){
+            m_status = CORRECT;
+            return *this;
+        }
+        else{
+            m_status = WRONG;
+            return *this;
+        }
+    }
+    else{
+        cout << "Something really wrong here PerformanceIterator::operator--\n"
+                << snote->getID() << " matched to " << snote->getAlignedNoteID() << "\t"
+                << pnote->getID() << " matched to " << pnote->getAlignedNoteID() 
+                << endl;
+    }
+
+
+
+    return *this;
+
+}
+
+void PerformanceIterator::checkStatus(){
+
+    SNote *snote = *m_sit;
+
+    PNote *pnote = *m_pit;
+
+  // Matcher rules state that in a contiguous group of results,
+  // missing and extra notes cannot occur together (as they will
+  // be resolved into wrong notes)
+
+  /*  
+    cout << "\nChecking status...\n";
+    cout << "Score note: " << snote->getPitchString() << endl 
+    << "\tid '" << snote->getID() << "'" << endl
+    << "\taligned to '" << snote->getAlignedNoteID() << "'" << endl
+    << endl
+    << "Perf note: " << pnote->getPitchString() << endl 
+    << "\tid '" << pnote->getID() << "'" << endl
+    << "\taligned to '" << pnote->getAlignedNoteID() << "'" << endl;
+
+    cout << endl;
+  */
+
+    string snoteID, snoteAligned, sPitch;
+    string pnoteID, pnoteAligned, pPitch;
+    if( m_sit == m_score->getNotes()->end() ) {
+        snoteID = "end";
+        snoteAligned = "end";
+        pPitch = "end";
+    }
+    else {
+        snoteID = snote->getID();
+        snoteAligned = snote->getAlignedNoteID();
+        sPitch = snote->getPitchString();
+    }
+
+    if( m_pit == m_perf->getNotes()->end() ) {
+        pnoteID = "end";
+        pnoteAligned = "end";
+        pPitch = "end";
+    }
+    else {
+        pnoteID = pnote->getID();
+        pnoteAligned = pnote->getAlignedNoteID();
+        pPitch = pnote->getPitchString();
+    }
+
+
+
+    if( snoteAligned == pnoteID ){
+    
+        if( snoteAligned == "" ){
+            cout << "PerformanceIterator: FATAL ERROR! Missing and extra notes together!!\n"
+                    << "score id=" << snoteID << "\tperf id=" << pnoteID 
+                    << endl;
+            m_status = ERROR;
+        }
+        else if( sPitch == pPitch ){
+            m_status = CORRECT;
+        }
+        else{
+            m_status = WRONG;
+        }
+    
+    }
+    else if( ( pnoteAligned == "") &&
+               ( snoteAligned != "") ){ // score is matched, so performance note must be extra
+        m_status = EXTRA;
+               }
+
+               else if( ( snoteAligned == "") && 
+                          ( pnoteAligned != "")    ){ // perf is matched, so score note must be extra
+                   m_status = MISSING;
+                          }
+                          else{
+                              cout << "PerformanceIterator: FATAL ERROR! element mismatch!!\n"
+                                      << snoteID << " matched to " << snoteAligned << "\t"
+                                      << pnoteID << " matched to " << pnoteAligned 
+                                      << endl;
+
+                              m_status = ERROR;
+                          }
+
+  //cout << "Status " << getStatusString() << endl;
+
+}
+
+
+SNote* PerformanceIterator::getScoreNote(){
+    return *m_sit;
+}
+
+PNote* PerformanceIterator::getPerfNote(){
+    return *m_pit;
+}
+
+
+
+PerformanceIterator::Status PerformanceIterator::getStatus(){
+    return m_status;
+}
+
+string PerformanceIterator::getStatusString(){
+
+    switch( m_status ){
+        case CORRECT:{
+            return "Correct";
+        }
+        case WRONG:{
+            return "Wrong";
+        }
+        case EXTRA:{
+            return "Extra";
+        }
+        case MISSING:{
+            return "Missing";
+        }
+        default:{
+            return "Error";
+        }
+    }
+
+
+}
+
+
+PerformanceIterator::PerformanceIterator( PerformanceIterator &original ){
+
+
+    m_status = original.getStatus();
+
+    m_score = original.getScorePart();
+    m_perf = original.getPerfPart();
+
+    m_sit = original.getScoreIterator();
+    m_pit = original.getPerfIterator();
+
+}
+
+
+PerformanceIterator& PerformanceIterator::operator=( PerformanceIterator &original ){
+
+
+    m_status = original.getStatus();
+
+    m_score = original.getScorePart();
+    m_perf = original.getPerfPart();
+
+    m_sit = original.getScoreIterator();
+    m_pit = original.getPerfIterator();
+    return *this;
+
+}
+
+
+bool PerformanceIterator::hasNext(){
+
+  // Returns false if iterator isa at the end of either the score or the 
+  // performance. (At this point, all successive notes will be extra or missing)
+    PerfIterator pit = m_pit;
+    ScoreIterator sit = m_sit;
+
+
+    return !( ( ++pit == m_perf->getNotes()->end() ) ||
+            ( ++sit == m_score->getNotes()->end() )   ) ;
+}
+
+void PerformanceIterator::printStatus(){
+
+    cout << "S: " << (*m_sit)->getPitchString() << " " << (*m_sit)->getID() 
+            << "\tP: " << (*m_pit)->getPitchString() << " " << (*m_pit)->getID() 
+            << "\tstatus: " << m_status 
+            << endl;
+
+
+
+}
+
+void PerformanceIterator::removePNote(){
+
+    m_pit = m_perf->removeNote( m_pit );
+    checkStatus();
+}
