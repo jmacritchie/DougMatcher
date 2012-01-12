@@ -1,8 +1,8 @@
 #include "pmlmatcher.h"
 #include "matcher.h"
-#include "../codebank/pmldocument.h"
-#include "../codebank/pmlelements.h"
-#include "../codebank/pitch.h"
+#include "../pmllib/pmldocument.h"
+#include "../pmllib/pmlelements.h"
+#include "../pmllib/pitch.h"
 
 #include <fstream>
 #include <iostream>

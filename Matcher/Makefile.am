@@ -7,7 +7,7 @@ winmatch_SOURCES 	= main.cpp \
 
 winmatch_LDADD		= -ldouglet -lpml -lcurses
 
-INCLUDES		= -I/home/jenni/Ben_PML_libs/libdouglet -I/home/jenni/Ben_PML_libs/pmllib 
+INCLUDES		= -I/home/jenni/DougMatcher/libdouglet -I/home/jenni/DougMatcher/pmllib 
 LIBS			= -L/usr/local/lib
 CXXFLAGS                += -g $(INCLUDES) $(LIBS) 
 

@@ -1,4 +1,4 @@
-main.o: main.cpp /home/jenni/Ben_PML_libs/pmllib/pmldocument.h \
+main.o: main.cpp /home/jenni/DougMatcher/pmllib/pmldocument.h \
  /usr/include/c++/4.5/string /usr/include/c++/4.5/bits/c++config.h \
  /usr/include/c++/4.5/bits/os_defines.h /usr/include/features.h \
  /usr/include/bits/predefs.h /usr/include/sys/cdefs.h \
@@ -88,9 +88,9 @@ main.o: main.cpp /home/jenni/Ben_PML_libs/pmllib/pmldocument.h \
  /usr/include/xercesc/util/PanicHandler.hpp \
  /usr/include/xercesc/dom/DOMException.hpp \
  /usr/include/xercesc/dom/DOMRangeException.hpp \
- /home/jenni/Ben_PML_libs/pmllib/scorepart.h \
- /home/jenni/Ben_PML_libs/pmllib/pmldocument.h \
- /home/jenni/Ben_PML_libs/pmllib/pmlbase.h /usr/include/c++/4.5/iostream \
+ /home/jenni/DougMatcher/pmllib/scorepart.h \
+ /home/jenni/DougMatcher/pmllib/pmldocument.h \
+ /home/jenni/DougMatcher/pmllib/pmlbase.h /usr/include/c++/4.5/iostream \
  /usr/include/c++/4.5/ostream /usr/include/c++/4.5/ios \
  /usr/include/c++/4.5/bits/ios_base.h \
  /usr/include/c++/4.5/bits/locale_classes.h \
@@ -115,21 +115,21 @@ main.o: main.cpp /home/jenni/Ben_PML_libs/pmllib/pmldocument.h \
  /usr/include/xercesc/util/BaseRefVectorOf.c \
  /usr/include/xercesc/framework/XMLBuffer.hpp /usr/include/string.h \
  /usr/include/bits/string3.h /usr/include/assert.h \
- /home/jenni/Ben_PML_libs/pmllib/snote.h \
- /home/jenni/Ben_PML_libs/pmllib/note.h \
- /home/jenni/Ben_PML_libs/pmllib/pitch.h /usr/include/c++/4.5/sstream \
+ /home/jenni/DougMatcher/pmllib/snote.h \
+ /home/jenni/DougMatcher/pmllib/note.h \
+ /home/jenni/DougMatcher/pmllib/pitch.h /usr/include/c++/4.5/sstream \
  /usr/include/c++/4.5/bits/sstream.tcc /usr/include/c++/4.5/utility \
  /usr/include/c++/4.5/bits/stl_relops.h \
- /home/jenni/Ben_PML_libs/pmllib/tuning.h /usr/include/c++/4.5/map \
+ /home/jenni/DougMatcher/pmllib/tuning.h /usr/include/c++/4.5/map \
  /usr/include/c++/4.5/bits/stl_tree.h /usr/include/c++/4.5/bits/stl_map.h \
  /usr/include/c++/4.5/bits/stl_multimap.h \
- /home/jenni/Ben_PML_libs/pmllib/pnote.h \
- /home/jenni/Ben_PML_libs/pmllib/perfpart.h \
- /home/jenni/Ben_PML_libs/pmllib/perfpart.h /usr/include/libio.h \
+ /home/jenni/DougMatcher/pmllib/pnote.h \
+ /home/jenni/DougMatcher/pmllib/perfpart.h \
+ /home/jenni/DougMatcher/pmllib/perfpart.h /usr/include/libio.h \
  /usr/include/_G_config.h /usr/include/bits/sys_errlist.h \
  /usr/include/bits/stdio.h /usr/include/bits/stdio2.h readmidi.h
 
-/home/jenni/Ben_PML_libs/pmllib/pmldocument.h:
+/home/jenni/DougMatcher/pmllib/pmldocument.h:
 
 /usr/include/c++/4.5/string:
 
@@ -383,11 +383,11 @@ main.o: main.cpp /home/jenni/Ben_PML_libs/pmllib/pmldocument.h \
 
 /usr/include/xercesc/dom/DOMRangeException.hpp:
 
-/home/jenni/Ben_PML_libs/pmllib/scorepart.h:
+/home/jenni/DougMatcher/pmllib/scorepart.h:
 
-/home/jenni/Ben_PML_libs/pmllib/pmldocument.h:
+/home/jenni/DougMatcher/pmllib/pmldocument.h:
 
-/home/jenni/Ben_PML_libs/pmllib/pmlbase.h:
+/home/jenni/DougMatcher/pmllib/pmlbase.h:
 
 /usr/include/c++/4.5/iostream:
 
@@ -455,11 +455,11 @@ main.o: main.cpp /home/jenni/Ben_PML_libs/pmllib/pmldocument.h \
 
 /usr/include/assert.h:
 
-/home/jenni/Ben_PML_libs/pmllib/snote.h:
+/home/jenni/DougMatcher/pmllib/snote.h:
 
-/home/jenni/Ben_PML_libs/pmllib/note.h:
+/home/jenni/DougMatcher/pmllib/note.h:
 
-/home/jenni/Ben_PML_libs/pmllib/pitch.h:
+/home/jenni/DougMatcher/pmllib/pitch.h:
 
 /usr/include/c++/4.5/sstream:
 
@@ -469,7 +469,7 @@ main.o: main.cpp /home/jenni/Ben_PML_libs/pmllib/pmldocument.h \
 
 /usr/include/c++/4.5/bits/stl_relops.h:
 
-/home/jenni/Ben_PML_libs/pmllib/tuning.h:
+/home/jenni/DougMatcher/pmllib/tuning.h:
 
 /usr/include/c++/4.5/map:
 
@@ -479,11 +479,11 @@ main.o: main.cpp /home/jenni/Ben_PML_libs/pmllib/pmldocument.h \
 
 /usr/include/c++/4.5/bits/stl_multimap.h:
 
-/home/jenni/Ben_PML_libs/pmllib/pnote.h:
+/home/jenni/DougMatcher/pmllib/pnote.h:
 
-/home/jenni/Ben_PML_libs/pmllib/perfpart.h:
+/home/jenni/DougMatcher/pmllib/perfpart.h:
 
-/home/jenni/Ben_PML_libs/pmllib/perfpart.h:
+/home/jenni/DougMatcher/pmllib/perfpart.h:
 
 /usr/include/libio.h:
 

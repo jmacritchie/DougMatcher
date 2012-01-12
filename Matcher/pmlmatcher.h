@@ -1,8 +1,8 @@
 #ifndef PML_MATCHER_H
 #define PML_MATCHER_H
 
-#include "../codebank/pmlelements.h"
-#include "../codebank/pmldocument.h"
+#include "../pmllib/pmlelements.h"
+#include "../pmllib/pmldocument.h"
 
 #include "pmlmatcher.h"
 #include <string>
