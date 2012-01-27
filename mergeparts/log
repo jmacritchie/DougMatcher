@@ -1,0 +1,12 @@
+---- Parsing file ----
+
+/home/dougie/work/XMLtools/mergeparts/merged.xml
+Line 31	Column18
+Unknown element 'number'
+
+/home/dougie/work/XMLtools/mergeparts/merged.xml
+Line 33	Column24
+Element 'staff-distance' is not valid for content model: '(staff-distance)?'
+
+---- File parsed ----
+

@@ -1,0 +1,1 @@
+g++ main.cpp -o mergeparts -I/home/jenni/codebank/ -L/usr/local/lib/ -lm -lxerces-c -ldoug

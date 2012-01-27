@@ -1,0 +1,13 @@
+
+bin_PROGRAMS            = mergeparts
+
+mergeparts_SOURCES    = main.cpp 
+
+mergeparts_LDADD      = -ldoug -lX11
+
+INCLUDES                = -I/home/jenni/codebank
+LIBS                    = -L/usr/local/lib
+
+CXXFLAGS                += $(INCLUDES) $(LIBS)
+CFLAGS                  += $(INCLUDES) $(LIBS)
+

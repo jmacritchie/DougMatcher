@@ -1,0 +1,86 @@
+
+
+
+
+<!-- ============================================================= -->
+<!--                    Performance Markup Language DTD            -->
+<!-- ============================================================= -->
+
+
+<!--
+        Performance Markup Language (PML) DTD  
+        Version 0.1 - 1 Oct 2005
+
+        Copyright D McGilvray 2005 - 2006
+        http://cmt.gla.ac.uk
+
+  
+
+-->
+
+
+<!--                    Include MusicXML part-wise DTD             -->
+
+<!ENTITY % partwise             PUBLIC "partwise.dtd">
+
+
+<!--                    Note                                       -->
+<!--                    Extensions to standard MusicXML note
+                        element                                    -->
+<!--                    note                                       -->
+<!ELEMENT  note         time                                         >
+                        struct_list                                  >
+
+
+<!ATTLIST  note
+             id         ID                                 #REQUIRED >
+             
+
+
+<!--                    Start Time                                 -->
+<!--                    Explicit, logical start time.       
+                        Expressed in divisions of a beat 
+                        as defined for duration                    -->          
+<!ELEMENT  time         #PCDATA                                      >
+
+
+
+<!--                    Performance                                -->
+<!--                    Contains the performance markup            -->
+<!ELEMENT  performance  perfpart*                                    >
+
+
+
+<!--                    Performance Part                           -->
+<!--                    Contains performance events                -->
+<!ELEMENT  perfpart     event*                                       >
+
+
+<!--                    Event                                      -->
+<!--                    Describes a performance artifact (Eg. a
+                        note).                                     -->
+<!ELEMENT  event        onset, offset, avgFreq?, pitch?, 
+                        struct_list?, link                           >
+
+<!ATTLIST  event
+             id         ID                                 #REQUIRED >
+
+
+
+
+
+<!--                    STRUCTURE LIST                             -->
+<!--                    Contains a list of structures              -->
+<!ELEMENT  struct_list  (struct_link*)                               >
+
+<!--                    STRUCTURE REFERENCE                        -->
+<!--                    Contains a reference to a structure and
+                        the structure's type                       -->
+<!ELEMENT  struct_link  EMPTY                                        >
+<!--         type       type of the referenced strucure
+             ref        reference to structure                     -->
+<!ATTLIST  struct_link
+             type       CDATA                              #REQUIRED
+             ref        IDREF                              #REQUIRED >
+
+

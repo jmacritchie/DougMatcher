@@ -1,0 +1,78 @@
+
+
+
+
+<!-- ============================================================= -->
+<!--                    Performance Markup Language DTD            -->
+<!-- ============================================================= -->
+
+
+<!--
+        Performance Markup Language (PML) DTD  
+        Version 0.1 - 1 Oct 2005
+
+        Copyright D McGilvray 2005 - 2006
+        http://cmt.gla.ac.uk
+-->
+
+
+<!--                    Include MusicXML part-wise DTD             -->
+<!ENTITY % partwise             PUBLIC "partwise.dtd">
+
+
+
+<!--  Extensions to the existing note element declaration          -->
+<!--  These include an id for referencing notes, an explicit,      -->
+<!--  logical start time, and a structure list.                    -->
+<!ELEMENT  note         time                                         >
+                        struct_list                                  >
+<!ATTLIST  note
+             id         ID                                 #REQUIRED >
+             
+<!-- Explicit, logical start time, expresed in divisions of one    -->
+<!-- beat (as duration is) from the begining of the bar.             >
+<!ELEMENT  time         #PCDATA                                      >
+
+
+<!-- Rooot element                                                   >
+<!ELEMENT  pml          (score-partwise, performance)                >
+
+
+<!-- Performance                                                   -->
+<!-- Contains Performance parts                                    -->
+<!ELEMENT  performance  (perfpart*)                                  >
+
+
+<!-- Performance part                                              -->
+<!-- Contains performance events relating to one score part.       -->
+<!-- Must reference the score part.                                  >
+<!ELEMENT  perfpart     event*                                       >
+<!ATTLIST  perfpart
+             part       IDREF                              #REQUIRED >
+
+
+<!--                    Event                                      -->
+<!--                    Describes a performance artifact (Eg. a
+                        note).                                     -->
+<!ELEMENT  event        onset, offset, avgFreq?, pitch?, 
+                        struct_list?, link                           >
+<!ATTLIST  event
+             id         ID                                 #REQUIRED >
+
+
+
+<!--                    STRUCTURE LIST                             -->
+<!--                    Contains a list of structures              -->
+<!ELEMENT  struct_list  (struct_link*)                               >
+
+<!--                    STRUCTURE REFERENCE                        -->
+<!--                    Contains a reference to a structure and
+                        the structure's type                       -->
+<!ELEMENT  struct_link  EMPTY                                        >
+<!--         type       type of the referenced strucure
+             ref        reference to structure                     -->
+<!ATTLIST  struct_link
+             type       CDATA                              #REQUIRED
+             ref        IDREF                              #REQUIRED >
+
+

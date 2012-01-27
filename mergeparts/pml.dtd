@@ -1,0 +1,117 @@
+
+
+
+
+<!-- ============================================================= -->
+<!--                    Performance Markup Language DTD            -->
+<!-- ============================================================= -->
+
+
+<!--
+        Performance Markup Language (PML) DTD  
+        Version 0.1 - 1 Oct 2005
+
+        Copyright D McGilvray 2005 - 2006
+        http://cmt.gla.ac.uk
+-->
+
+
+<!--                    Include MusicXML part-wise DTD             -->
+<!ENTITY % musicxml     SYSTEM 'partwise.dtd' > %musicxml;
+
+
+
+<!--  Extensions to the existing note element declaration          -->
+<!--  These include an id for referencing notes, an explicit,      -->
+<!--  logical start time, and a structure list.                    -->
+<!ELEMENT  note (
+                  ( (grace, %full-note;, (tie, tie?)? ) |
+                     (cue, %full-note;, duration)        |
+	             (%full-note;, duration, (tie, tie?)? ) 
+                  ),
+	        instrument?, accidental?, %editorial-voice;, type?, dot*,
+	        time-modification?, stem?, notehead?,
+	        staff?, beam*, notations*, lyric*,
+                starttime,
+                align?,                                      
+                struct_list?)
+
+
+                                 >
+<!ATTLIST  note
+             id         ID                                 #REQUIRED >
+             
+<!-- Explicit, logical start time, expresed in divisions of one    -->
+<!-- beat (as duration is) from the begining of the bar.           -->
+<!ELEMENT  starttime    (#PCDATA)                                    >
+
+
+<!-- Root element - (currently only using score-partwise)
+     must later also include analysis section                      -->
+<!ELEMENT  pml          (score-partwise, 
+                         performance)                                >
+
+
+<!-- Performance                                                   -->
+<!-- Contains Performance parts                                    -->
+<!ELEMENT  performance  (perfpart*)                                  >
+
+
+<!-- Performance part                                              -->
+<!-- Contains performance events relating to one score part.       -->
+<!-- Must reference the score part.                                -->
+<!ELEMENT  perfpart     (event*)                                     >
+<!ATTLIST  perfpart
+             part       IDREF                              #REQUIRED >
+
+
+<!--                    Event                                      -->
+<!--                    Describes a performance artifact (Eg. a
+                        note).                                     -->
+<!ELEMENT  event        (onset, 
+                         end, 
+                         freq?, 
+                         pitch?, 
+                         struct_list?, 
+                         align?)                                     >
+<!ATTLIST  event
+             id         ID                                 #REQUIRED >
+
+
+
+<!--                    Onset time in secs                         -->
+<!ELEMENT  onset        (#PCDATA)                                    >
+
+
+<!--                    Offset time in seconds ('offset' tag
+			conflicts with MusocXML tag                -->
+<!ELEMENT  end          (#PCDATA)                                    >
+
+<!--                    Frequency in Hz                            -->
+<!ELEMENT  freq         (#PCDATA)                                    >
+
+
+<!--                    STRUCTURE LIST                             -->
+<!--                    Contains a list of structures              -->
+<!ELEMENT  struct_list  (struct_link*)                               >
+
+<!--                    STRUCTURE REFERENCE                        -->
+<!--                    Contains a reference to a structure and
+                        the structure's type                       -->
+<!ELEMENT  struct_link  EMPTY                                        >
+<!--         type       type of the referenced strucure
+             ref        reference to structure                     -->
+<!ATTLIST  struct_link
+             type       CDATA                              #REQUIRED
+             ref        IDREF                              #REQUIRED >
+
+
+<!--                    align                                      -->
+<!--                    Contains score-performance alignment
+                        information. This consists of the id
+			of the note/event to which this element is 
+			matched, and a matching status eg. Correct
+			or wrong.                                 -->
+<!ELEMENT  align        (#PCDATA)                                   >
+<!ATTLIST  align
+             note       IDREF                              #REQUIRED >
