@@ -9,7 +9,7 @@ pml_libraries		= -lm -lxerces-c
 
 # tuning library stuff
 
-tuning_libraries	= -lm -lqt-mt
+tuning_libraries	= -lm -lQtCore
 
 
 
@@ -19,7 +19,7 @@ libdouglet_la_SOURCES 	= algorithms.cpp \
 			soundfile.cpp \
 			freqfile.cpp 
 
-libdouglet_la_LIBADD    = -lm -lqt-mt -lfftw3 -lsndfile $(pml_libraries) $(tuning_libraries)
+libdouglet_la_LIBADD    = -lm -lQtCore -lfftw3 -lsndfile $(pml_libraries) $(tuning_libraries)
 
 INCLUDES		= -I/usr/include/qt3
 
