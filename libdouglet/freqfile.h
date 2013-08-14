@@ -3,7 +3,8 @@
 
 #include <vector>
 #include <list>
-
+#include <stdlib.h>
+ 
 class SoundFile;
 class PitchTracker;
 
